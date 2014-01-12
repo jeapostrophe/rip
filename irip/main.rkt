@@ -360,6 +360,7 @@
      (set! sum-cons '10)
      (undo)
      (set! sum-cons (+ (_ sum-cons-lhs) (_ sum-cons-rhs)))
+     ;; xxx the state here isn't quite what I want.
      (set! sum-cons-lhs (sum (cdr l)))
      (set! sum-cons-rhs (car l))
      (set! sum-null '0)]))
