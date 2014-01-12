@@ -96,14 +96,15 @@
 (define (v:false? v)
   (and (v:bool? v) (not (v:bool-b v))))
 
-(define (v:apply prim-or-clo arg-vs ok fail)
+(define (v:apply abstract-env prim-or-clo arg-vs ok fail)
   (define fe
     (e:app (e:val prim-or-clo)
            (map e:val arg-vs)))
   (match prim-or-clo
     [(v:clo arg-ids body env)
      (if (= (length arg-vs) (length arg-ids))
-       (interp body
+       (interp abstract-env
+               body
                (for/fold ([env env])
                    ([ai arg-ids]
                     [av arg-vs])
@@ -126,10 +127,12 @@
 
 ;;   ok : val -> ans
 ;; fail : msg expr -> ans
-(define (interp e env ok fail)
+(define (interp abstract-env e env ok fail)
   (match e
     [(e:abstract label)
-     (ok (v:abstract env (e:abstract label)))]
+     (if (hash-has-key? abstract-env label)
+       (interp abstract-env (hash-ref abstract-env label) env ok fail)
+       (ok (v:abstract env (e:abstract label))))]
     [(e:id i)
      (if (hash-has-key? env i)
        (ok (hash-ref env i))
@@ -138,23 +141,26 @@
      (ok v)]
     [(e:if c t f)
      (interp
+      abstract-env
       c env
       (λ (cv)
         (if (v:false? cv)
-          (interp f env ok fail)
-          (interp t env ok fail)))
+          (interp abstract-env f env ok fail)
+          (interp abstract-env t env ok fail)))
       (λ (r ce)
         (fail r (e:if ce t f))))]
     [(e:lam args body)
      (ok (v:clo args body env))]
     [(e:app fun args)
      (interp
+      abstract-env
       fun env
       (λ (fv)
         (define (interp-args args-v args-e)
           (if (empty? args-e)
-            (v:apply fv args-v ok fail)
-            (interp (first args-e)
+            (v:apply abstract-env fv args-v ok fail)
+            (interp abstract-env
+                    (first args-e)
                     env
                     (λ (arg-v)
                       (interp-args (snoc args-v arg-v)
@@ -172,6 +178,7 @@
 
 (define (interp* se)
   (interp
+   (hasheq)
    (parse-expr se)
    (hasheq)
    (λ (sev) sev)
@@ -266,14 +273,6 @@
             (list (gensym 'begin) before))
           last)]))
 
-(define (interactive se)
-  (interp
-   (parse-expr se)
-   (hasheq)
-   (λ (sev) sev)
-   (λ (r see)
-     (print-context see))))
-
 (require racket/pretty)
 
 (define unparse
@@ -306,12 +305,43 @@
     (list '_ id)]
    [(e:id id)
     id]
+   [(e:if c t f)
+    (list 'if (unparse c) (unparse t) (unparse f))]
    [(? hash? env)
     (for/list ([(k v) env])
       (list k '-> (unparse v)))]))
 
 (define (print-context e)
   (pretty-display (unparse e)))
+
+(define (interactive se script)
+  (let loop ([history (list (hasheq))]
+             [script script])
+    (interp
+     (first history)
+     (parse-expr se)
+     (hasheq)
+     (λ (sev)
+       (print-context (first history)))
+     (λ (r see)
+       (print-context see)
+       (displayln "--------------------------------")
+       (displayln r)
+       (newline)
+
+       (match script
+         [(list-rest command new-script)
+          (define new-history
+            (match command
+              [`(undo)
+               (rest history)]
+              [`(set! ,abstract-id ,se)
+               (cons (hash-set (first history) abstract-id
+                               (parse-expr se))
+                     history)]))
+          (loop new-history new-script)]
+         [(list)
+          (error 'interactive "Script ended before success")])))))
 
 (module+ test
   (interactive
@@ -323,4 +353,13 @@
              (check (sum '(1)) '1)
              (check (sum '(2)) '2)
              (check (sum '(1 2)) '3)
-             '#t))))
+             '#t))
+   `[(set! sum-definition '10)
+     (undo)
+     (set! sum-definition (if (cons? l) (_ sum-cons) (_ sum-null)))
+     (set! sum-cons '10)
+     (undo)
+     (set! sum-cons (+ (_ sum-cons-lhs) (_ sum-cons-rhs)))
+     (set! sum-cons-lhs (sum (cdr l)))
+     (set! sum-cons-rhs (car l))
+     (set! sum-null '0)]))
