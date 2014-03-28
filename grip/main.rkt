@@ -1,7 +1,10 @@
 #lang racket/base
 (require racket/list
          racket/match
-         rackunit)
+         rackunit
+         "model.rkt"
+         "interact.rkt"
+         "quick-check.rkt")
 
 ;; A Racket function is CODE
 
@@ -21,33 +24,33 @@
 ;; INTERPRETER: xxx
 
 ;; check-test-case : fun-defn testcase -> result
-(define (check-test-case fd tc) (result #t empty))
-;; check-property : fun-defn testcase property-function -> bool
-(define (check-property-tc fd tc p-fun) #t)
-;; check-test-case : fun-defn input property-function -> result
-(define (check-property fun input p-fun) (result #t empty))
-
+(define (check-test-case fd tc) (result #t 
+                                        (list (fun-call fd
+                                                        (testcase-input tc)
+                                                        (testcase-output tc)))))
+;; check-property : fun-defn testcase property-function -> result
+(define (check-property-tc fd tc p-fun) (result #t 
+                                                (list (fun-call fd
+                                                                (testcase-input tc)
+                                                                (testcase-output tc)))))
+;; check-property : fun-defn input property-function -> result
+(define (check-property fd input p-fun) (result #f 
+                                                (list (fun-call fd
+                                                                input
+                                                                41))))
 
 
 ;; EDITOR
 
-;; xxx add maybe-generate-input
-;; fill : fun-defn hole-name expr -> fun-defn
-
-;; fun-defn : symbol (A -> B) (list (testcase A B)) (hasheq symbol (property A B))
-(struct fun-defn (name code test-cases properties))
-;; testcase : (list values) value
-(struct testcase (input output) #:transparent)
-;; testcase-result : testcase result
-(struct testcase-result (tc result))
-;; fun-call : fun-defn (list values) value
-(struct fun-call (fd input output))
-;; result : bool (list fun-call?)  
-(struct result (success trace))
-
-;; lambda->fun-defn : string lambda-function -> fun-defn
+;; lambda->fun-defn : string (A -> B) -> fun-defn
 (define (lambda->fun-defn name lam)
-  (fun-defn name lam empty (hasheq)))
+  (fun-defn name lam null empty (hasheq)))
+
+;; set-generator : fun-defn ( -> list?) -> fun-defn
+(define (set-generator fd gen)
+  (struct-copy fun-defn fd
+               [generator
+                gen]))
 
 ;; add-test-case : fun-defn testcase -> fun-defn
 (define (add-test-case fd tc)
@@ -84,20 +87,26 @@
 ;; check-new-tc : fun-defn testcase -> (list result?)
 (define (check-new-tc fd tc)
   (for/list ([(name fun) (in-hash (fun-defn-properties fd))]
-             #:unless (check-property-tc fd tc fun))
+             #:unless (result-success (check-property-tc fd tc fun)))
     name))
 
 ;; check-new-prop : fun-defn lambda-function -> (list result?)
 (define (check-new-prop fd pfun)
   (for/list ([tc (in-list (fun-defn-test-cases fd))]
-             #:unless (check-property-tc fd tc pfun))
+             #:unless (result-success (check-property-tc fd tc pfun)))
     tc))
+
+;; check-all-properties : fun-defn input -> (list property-result)
+(define (check-all-properties fd input)
+  (for/list ([(p-name p-fun) (in-hash fun-defn-properties fd)]
+             #:unless (result-success (check-property fd input p-fun)))
+    (property-result p-name
+                     (result-trace (check-property fd input p-fun)))))
 
 
 ;; DEBUGGER
 
-;; human's view : fun-defns -> (WORKLIST)* -> fun-defns
-
+;; gen-worklist : (list fun-defn) -> (list testcase-result)
 (define (gen-worklist fun-defns)
   ;; map : (a -> b) (list a) -> (list b)
   ;; append-map : (a -> list b) (list a) -> (list b)
@@ -106,8 +115,8 @@
    (for/list ([fd (in-hash-values fun-defns)])
      (test-fun fd))))
 
-;; print-results : testcase-result -> -
-(define (print-results tc-results)
+;; print-results-tc : (list testcase-result) -> -
+(define (print-results-tc tc-results)
   (for ([tc-result tc-results])
     (match-define (testcase-result tc trace) tc-result)
     (match-define (fun-call fd in out) (first trace))
@@ -115,6 +124,19 @@
             in
             out
             (testcase-output tc))
+    (unless (empty? (rest trace))
+      (printf "The following is a stack trace:\n")
+      (print-trace (rest trace)))))
+
+;; print-results-p : (list property-result) -> -
+(define (print-results-p p-results)
+  (for ([p-result p-results])
+    (match-define (property-result p-name trace) p-result)
+    (match-define (fun-call fd in out) (first trace))
+    (printf "The function failed property ~a with input ~a and output ~a.\n"
+            p-name
+            in
+            out)
     (unless (empty? (rest trace))
       (printf "The following is a stack trace:\n")
       (print-trace (rest trace)))))
@@ -138,32 +160,48 @@
 (define (test-fun fd)
   (filter (λ (item) (not (empty? item)))
           (for/list ([tc (fun-defn-test-cases fd)])
-            (define r (check-test-case fd tc))
-            (if (result-success r)
+            (match-define (result success trace) (check-test-case fd tc))
+            (if success
                 empty          
-                (testcase-result tc (result-trace r))))))
+                (testcase-result tc trace)))))
 
-;; quick-check : fun-defn lambda-function -> xxx
-(define (quick-check fd property) 
-  (printf "Running quick check...\n"))
+;; quick-check : fun-defn string (A -> B) integer -> 
+;;                              (list property-result?)
+(define (quick-check fd p-name p-fun i)   
+  (printf "Running quick check...\n")
+  (define (loop count results)
+    (cond 
+      [(zero? count)
+       results]
+      [else 
+       (match-define (result success trace) 
+         (check-property fd 
+                         ((fun-defn-generator fd)) 
+                         p-fun))
+       (if success
+           (loop (- count 1) results)
+           (loop (- count 1) 
+                 (cons (property-result p-name trace) 
+                       results)))]))
+  (loop i empty))
 
+;; ensure-generator : fun-defn -> fun-defn
+(define (ensure-generator fd)
+  (cond 
+    [(null? (fun-defn-generator fd))     
+     (printf "No generator for funciton parameters currently exists.\n")
+     (set-generator fd
+                    (interact
+                     ["Enter information about parameters"
+                      (custom-generator fd)]
+                     ["Enter a contract to specifiy parameter information"
+                      (error 'create-generator "I haven't written this yet.")] ; xxx
+                     ["Enter a generator function"
+                      (read)]))]
+    [else
+     fd]))
 
 ;; INTERFACE
-
-(define-syntax-rule (interact [label . code] ...)
-  (interact*
-   (list (cons 'label (λ () . code)) ...)))
-
-(define (interact* options)
-  (printf "\nChoose an option\n")
-  (for ([i (in-naturals 1)]
-        [o (in-list options)])
-    (printf " ~a. ~a\n" i (car o)))
-  (define in (read))
-  (if (and (number? in)
-           (< 0 in (+ 1 (length options))))
-      ((cdr (list-ref options (- in 1))))
-      (printf "Invalid user input"))) 
 
 (define (modify-fun fd)
   (interact
@@ -171,7 +209,7 @@
     (printf "Edit mode")
     (modify-fun fd)]
    ["Test the function"
-    (test-fun fd)
+    (print-results-tc (test-fun fd))
     (modify-fun fd)]
    ["Add a test case"
     (printf "Enter input for test case in a list: ")
@@ -181,15 +219,20 @@
     (for ([bad-prop (check-new-tc fd tc)])
       (printf "Your test cases fails to match property: ~a\n" bad-prop))
     (modify-fun (add-test-case fd tc))]
-   ["Test a proptery"
+   ["Test a property"
     (printf "Enter property name: ")
     (define name (read))
-    (if (hash-has-key? (fun-defn-properties fd) name)
-        (quick-check fd 
-                     (hash-ref (fun-defn-properties fd)
-                               name))
+    (printf "Enter the number of times to run quick check: ")
+    (define count (read))
+    (define new-fd (ensure-generator fd))
+    (if (hash-has-key? (fun-defn-properties new-fd) name)
+        (print-results-p (quick-check new-fd 
+                                      name
+                                      (hash-ref (fun-defn-properties new-fd)
+                                                name)
+                                      count))
         (printf "No property exists with the name ~a\n" name))
-    (modify-fun fd)]
+    (modify-fun new-fd)]
    ["Add a property"
     (printf "Enter property name: ")
     (define name (read))
@@ -204,10 +247,10 @@
 (define (debugger-step fun-defns)
   (interact
    ["Generate worklist"
-    (print-results (gen-worklist fun-defns))
+    (print-results-tc (gen-worklist fun-defns))
     fun-defns]
    ["Organize worklist"
-    (print-results (gen-worklist fun-defns))
+    (print-results-tc (gen-worklist fun-defns))
     fun-defns]
    ["Modify/test a function"
     (printf "Enter the name of the function:")
@@ -241,6 +284,10 @@
   (foldr (λ (tc fd) (add-test-case fd tc))
          fd tcs))
 
+(define (add-property* fd . properties)
+  (foldr (λ (p fd) (add-property fd (car p) (cdr p)))
+         fd properties))
+
 (define f1
   (add-test-case* (lambda->fun-defn 'f1 (λ (x y) (+ x y)))
                   (testcase (list 2 3) 5)
@@ -248,11 +295,15 @@
                   (testcase (list 0 1) 1)))
 
 (define f2 
-  (add-test-case* (lambda->fun-defn 'f2 (λ (x) (* x x x)))
-                  (testcase (list 2) 8)
-                  (testcase (list 3) 9)
-                  (testcase (list -3) -9)
-                  (testcase (list 0) 0)))
+  (add-property* (add-test-case* (lambda->fun-defn 'f2 (λ (x) (* x x x)))
+                                 (testcase (list 2) 8)
+                                 (testcase (list 3) 9)
+                                 (testcase (list -3) -9)
+                                 (testcase (list 0) 0))
+                 (cons 'increasing 
+                       (λ (x) (> (f2 x) x)))
+                 (cons 'super-increasing 
+                       (λ (x) (> (f2 x) (* x x))))))
 
 (debugger 
  (hasheq 'f1 f1
