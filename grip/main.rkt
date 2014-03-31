@@ -24,27 +24,30 @@
 ;; INTERPRETER: xxx
 
 ;; check-test-case : fun-defn testcase -> result
-(define (check-test-case fd tc) (result #t 
-                                        (list (fun-call fd
-                                                        (testcase-input tc)
-                                                        (testcase-output tc)))))
+(define (check-test-case fd tc) 
+  (result #t 
+          (list (fun-call fd
+                          (testcase-input tc)
+                          (testcase-output tc)))))
 ;; check-property : fun-defn testcase property-function -> result
-(define (check-property-tc fd tc p-fun) (result #t 
-                                                (list (fun-call fd
-                                                                (testcase-input tc)
-                                                                (testcase-output tc)))))
+(define (check-property-tc fd tc p-fun) 
+  (result #t 
+          (list (fun-call fd
+                          (testcase-input tc)
+                          (testcase-output tc)))))
 ;; check-property : fun-defn input property-function -> result
-(define (check-property fd input p-fun) (result #f 
-                                                (list (fun-call fd
-                                                                input
-                                                                41))))
+(define (check-property fd input p-fun) 
+  (result #f 
+          (list (fun-call fd
+                          input
+                          41))))
 
 
 ;; EDITOR
 
 ;; lambda->fun-defn : string (A -> B) -> fun-defn
 (define (lambda->fun-defn name lam)
-  (fun-defn name lam null empty (hasheq)))
+  (fun-defn name lam empty empty (hasheq)))
 
 ;; set-generator : fun-defn ( -> list?) -> fun-defn
 (define (set-generator fd gen)
@@ -117,7 +120,7 @@
 
 ;; print-results-tc : (list testcase-result) -> -
 (define (print-results-tc tc-results)
-  (for ([tc-result tc-results])
+  (for ([tc-result (in-list tc-results)])
     (match-define (testcase-result tc trace) tc-result)
     (match-define (fun-call fd in out) (first trace))
     (printf "Test case with input ~a, produced ~a instead of ~a.\n"
@@ -159,7 +162,7 @@
 ;; test-fun : fun-defn -> testcase-result
 (define (test-fun fd)
   (filter (λ (item) (not (empty? item)))
-          (for/list ([tc (fun-defn-test-cases fd)])
+          (for/list ([tc (in-list (fun-defn-test-cases fd))])
             (match-define (result success trace) (check-test-case fd tc))
             (if success
                 empty          
@@ -170,26 +173,33 @@
 (define (quick-check fd p-name p-fun i)   
   (printf "Running quick check...\n")
   (define (loop count results)
-    (cond 
-      [(zero? count)
-       results]
-      [else 
-       (match-define (result success trace) 
-         (check-property fd 
-                         ((fun-defn-generator fd)) 
-                         p-fun))
-       (if success
-           (loop (- count 1) results)
-           (loop (- count 1) 
-                 (cons (property-result p-name trace) 
-                       results)))]))
+    (define result (quick-check-once fd
+                                     p-name
+                                     p-fun))
+    (if (zero? count)
+       results
+       (if (empty? result)
+           (loop (sub1 count) results)
+           (loop (sub1 count) 
+                 (cons result results)))]))
   (loop i empty))
+
+;; quick-check-once : fun-defn string (A -> B) -> 
+;;                              (list property-result?)
+(define (quick-check-once fd p-name p-fun)
+  (match-define (result success trace) 
+    (check-property fd 
+                    ((fun-defn-generator fd)) 
+                    p-fun))
+  (if success
+      empty
+      (property-result p-name trace)))
 
 ;; ensure-generator : fun-defn -> fun-defn
 (define (ensure-generator fd)
   (cond 
-    [(null? (fun-defn-generator fd))     
-     (printf "No generator for funciton parameters currently exists.\n")
+    [(empty? (fun-defn-generator fd))     
+     (printf "No generator for function parameters currently exists.\n")
      (set-generator fd
                     (interact
                      ["Enter information about parameters"

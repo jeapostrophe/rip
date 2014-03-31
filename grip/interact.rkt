@@ -15,5 +15,5 @@
       ((cdr (list-ref options (- in 1))))
       (printf "Invalid user input")))
 
-(provide
- (all-defined-out))
+(provide 
+ interact)
