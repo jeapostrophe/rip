@@ -161,28 +161,25 @@
 
 ;; test-fun : fun-defn -> testcase-result
 (define (test-fun fd)
-  (filter (λ (item) (not (empty? item)))
+  (filter (λ (item) 
+            (not (empty? item)))
           (for/list ([tc (in-list (fun-defn-test-cases fd))])
-            (match-define (result success trace) (check-test-case fd tc))
+            (match-define (result success trace) 
+              (check-test-case fd tc))
             (if success
                 empty          
                 (testcase-result tc trace)))))
 
 ;; quick-check : fun-defn string (A -> B) integer -> 
 ;;                              (list property-result?)
-(define (quick-check fd p-name p-fun i)   
+(define (quick-check fd p-name p-fun count)   
   (printf "Running quick check...\n")
-  (define (loop count results)
-    (define result (quick-check-once fd
-                                     p-name
-                                     p-fun))
-    (if (zero? count)
-       results
-       (if (empty? result)
-           (loop (sub1 count) results)
-           (loop (sub1 count) 
-                 (cons result results)))]))
-  (loop i empty))
+  (filter (λ (item) 
+            (not (empty? item)))
+          (for/list ([i (in-range count)])
+            (quick-check-once fd
+                              p-name
+                              p-fun))))
 
 ;; quick-check-once : fun-defn string (A -> B) -> 
 ;;                              (list property-result?)
