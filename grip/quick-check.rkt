@@ -222,7 +222,7 @@
 
 ;; SETTERS
 
-;; add-info : param -> info
+;; add-info : param -> param
 (define (add-info p)
   (define info (interact
                 ["Enter a range of values"
@@ -235,7 +235,7 @@
                  #f]))
   (cond 
     [(info? info)
-     (add-info (add-param-info (param-type p) info))]
+     (add-info (add-param-info p info))]
     [else
      p]))
 
@@ -255,14 +255,23 @@
            (default-range p-type)
            range))
      (define fun (default-generator p-type))
+     (define predicates (filter i-predicate? p-info))
      (if (equal? 'procedure p-type)
          fun
-         (λ () (fun real-range)))]      
+         (λ () 
+           (define (generate-new-val)
+             (define val (fun real-range))
+             (if (empty? (for/list ([p (in-list predicates)]
+                                    #:unless ((eval (i-predicate-fun p)) val))
+                           #f))  
+                 val
+                 (generate-new-val)))
+           (generate-new-val)))]      
     [else 
      (first generator)]))
 
-;; custom-generator : fun-defn -> ( -> list?)
-(define (custom-generator fd)
+;; custom-generator : -> ( -> list?)
+(define (custom-generator)
   (printf "\nHow many parameters are in the function?")
   (define count (read))
   (cond 
@@ -275,7 +284,7 @@
        list-of-gens)]
     [else
      (printf "Invalid number\n")
-     (custom-generator fd)]))
+     (custom-generator)]))
 
 
 (define f1
