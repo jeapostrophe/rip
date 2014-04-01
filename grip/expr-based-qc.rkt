@@ -84,4 +84,4 @@
 (check-pred list? ((listof/g int/g)))
 
 (provide
- expr-based-generator)
+ (all-defined-out))
