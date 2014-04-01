@@ -4,7 +4,8 @@
          rackunit
          "model.rkt"
          "interact.rkt"
-         "quick-check.rkt")
+         "expr-based-qc.rkt"
+         "custom-qc.rkt")
 
 ;; A Racket function is CODE
 
@@ -200,9 +201,9 @@
      (set-generator fd
                     (interact
                      ["Enter information about parameters"
-                      (custom-generator fd)]
-                     ["Enter a contract to specifiy parameter information"
-                      (error 'create-generator "I haven't written this yet.")] ; xxx
+                      (custom-generator)]
+                     ["Enter an expression to specifiy parameters"
+                      (expr-based-generator)]
                      ["Enter a generator function"
                       (read)]))]
     [else
