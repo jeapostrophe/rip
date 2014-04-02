@@ -55,7 +55,7 @@
 
 ;; valid-ranges : (S E -> (i-range | bool))
 (define (valid-ranges type)
-  (case type 
+  (match type 
     ['bool (λ (s e) 
              #f)]
     ['char (λ (s e) 
@@ -101,7 +101,7 @@
 
 ;; default-generator : symbol -> (range -> B)
 (define (default-generator type)
-  (case type
+  (match type
     ['bool random-bool]
     ['char random-char]
     ['string random-string]
@@ -112,7 +112,7 @@
 
 ;; default-range : symbol -> range
 (define (default-range type) 
-  (case type
+  (match type
     ['bool (i-range 0 1)]
     ['char (i-range min-char-int max-char-int)]
     [('string 'symbol) (i-range 0 20)]                    
@@ -161,13 +161,11 @@
 
 ;; random-char : i-range -> char
 (define (random-char range)
-  (integer->char 
-   (let ()
-     (define (valid-char int)
+  (define (valid-char int)
        (if (< lo-max-char-int int hi-min-char-int)
            (valid-char ((default-generator 'integer) range))
            int))
-     (valid-char (random-int range)))))
+  (integer->char (valid-char (random-int range))))
 
 ;; random-string : i-range -> string
 (define (random-string range)

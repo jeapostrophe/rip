@@ -193,21 +193,20 @@
 
 ;; test-fun : fun-defn -> testcase-result
 (define (test-fun fd)
+  (define testcases (fun-defn-test-cases fd))
   (filter (λ (item) 
             (not (empty? item)))
-          (let ()
-            (define testcases (fun-defn-test-cases fd))
-            (flatten
-             (for/list ([tc (in-list testcases)])
-               (match-define (result success trace) 
-                 (check-test-case fd tc))
-               (define property-results
-                 (for/list ([bad-prop (check-new-tc fd tc)])
-                   (property-result/tc bad-prop tc)))
-               (if success
-                   property-results          
-                   (cons (testcase-result tc trace) 
-                         property-results)))))))
+          (flatten
+           (for/list ([tc (in-list testcases)])
+             (match-define (result success trace) 
+               (check-test-case fd tc))
+             (define property-results
+               (for/list ([bad-prop (check-new-tc fd tc)])
+                 (property-result/tc bad-prop tc)))
+             (if success
+                 property-results          
+                 (cons (testcase-result tc trace) 
+                       property-results))))))
 
 ;; quick-check : fun-defn string (A -> B) integer -> 
 ;;                              (list property-result?)
