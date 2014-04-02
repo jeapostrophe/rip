@@ -26,6 +26,10 @@
 ;;(struct property-result (property-name trace))
 (struct/ctc property-result ([property-name symbol?] 
                              [trace (non-empty-listof fun-call?)]))
+;; property-result/tc : string testcase
+;;(struct property-result/tc (property-name tc))
+(struct/ctc property-result/tc ([property-name symbol?] 
+                             [tc testcase?]))
 ;; fun-call : fun-defn (list values) value
 ;;(struct fun-call (fd input output))
 (struct/ctc fun-call ([fd fun-defn?] 

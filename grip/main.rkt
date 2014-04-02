@@ -23,25 +23,34 @@
 ;; <- add them
 
 ;; INTERPRETER: xxx
+;; Anytime a function is called with input that matches a testcase then
+;; the expected output of the testcase is used. If there is not a testcase,
+;; we check the output to ensure that it fulfills all of the properties
+;; of the function and alert the user of all properties that are violated.
 
 ;; check-test-case : fun-defn testcase -> result
+;; This function runs the specified function with the testcase input and
+;; produces a stack trace of all function calls with their input/output.
 (define (check-test-case fd tc) 
-  (result #t 
+  (result #f 
           (list (fun-call fd
                           (testcase-input tc)
                           (testcase-output tc)))))
-;; check-property : fun-defn testcase property-function -> result
-(define (check-property-tc fd tc p-fun) 
-  (result #t 
-          (list (fun-call fd
-                          (testcase-input tc)
-                          (testcase-output tc)))))
+
+;; check-property : fun-defn testcase property-function -> bool
+;; This function runs the specified property with the testcase input and
+;; produces a stack trace of all function calls with their input/output.
+(define (check-property-tc fd tc p-fun) #f)
+
 ;; check-property : fun-defn input property-function -> result
+;; This function runs the specified property with the provided input and
+;; produces a stack trace of all function calls with their input/output.
 (define (check-property fd input p-fun) 
   (result #f 
           (list (fun-call fd
                           input
                           41))))
+
 
 
 ;; EDITOR
@@ -91,13 +100,13 @@
 ;; check-new-tc : fun-defn testcase -> (list result?)
 (define (check-new-tc fd tc)
   (for/list ([(name fun) (in-hash (fun-defn-properties fd))]
-             #:unless (result-success (check-property-tc fd tc fun)))
+             #:unless (check-property-tc fd tc fun))
     name))
 
 ;; check-new-prop : fun-defn lambda-function -> (list result?)
 (define (check-new-prop fd pfun)
   (for/list ([tc (in-list (fun-defn-test-cases fd))]
-             #:unless (result-success (check-property-tc fd tc pfun)))
+             #:unless (check-property-tc fd tc pfun))
     tc))
 
 ;; check-all-properties : fun-defn input -> (list property-result)
@@ -108,42 +117,64 @@
                      (result-trace (check-property fd input p-fun)))))
 
 
+
 ;; DEBUGGER
 
 ;; gen-worklist : (list fun-defn) -> (list testcase-result)
 (define (gen-worklist fun-defns)
-  ;; map : (a -> b) (list a) -> (list b)
-  ;; append-map : (a -> list b) (list a) -> (list b)
-  ;; (append-map test-fun (hash-values fun-defns))
   (append* 
    (for/list ([fd (in-hash-values fun-defns)])
      (test-fun fd))))
 
-;; print-results-tc : (list testcase-result) -> -
-(define (print-results-tc tc-results)
-  (for ([tc-result (in-list tc-results)])
-    (match-define (testcase-result tc trace) tc-result)
-    (match-define (fun-call fd in out) (first trace))
-    (printf "Test case with input ~a, produced ~a instead of ~a.\n"
-            in
-            out
-            (testcase-output tc))
-    (unless (empty? (rest trace))
-      (printf "The following is a stack trace:\n")
-      (print-trace (rest trace)))))
+;; print-results : (list testcase-result) -> -
+(define (print-results results)
+  (for ([result (in-list results)])
+    (cond
+      [(testcase-result? result)
+       (print-tc-result result)]
+      [(property-result? result)
+       (print-prop-result result)]
+      [(property-result/tc? result)
+       (print-prop-result/tc result)])))
 
-;; print-results-p : (list property-result) -> -
-(define (print-results-p p-results)
-  (for ([p-result p-results])
-    (match-define (property-result p-name trace) p-result)
-    (match-define (fun-call fd in out) (first trace))
-    (printf "The function failed property ~a with input ~a and output ~a.\n"
-            p-name
-            in
-            out)
-    (unless (empty? (rest trace))
-      (printf "The following is a stack trace:\n")
-      (print-trace (rest trace)))))
+;; print-tc-result : testcase-result -> -
+(define (print-tc-result result)
+  (match-define (testcase-result tc trace) 
+    result)
+  (match-define (fun-call fd in out) 
+    (first trace))
+  (printf "Test case with input ~a, produced ~a instead of ~a.\n"
+          in
+          out
+          (testcase-output tc))
+  (pre-print-trace (rest trace)))
+
+;; print-prop-result : property-result -> -
+(define (print-prop-result result)
+  (match-define (property-result p-name trace) 
+    result)
+  (match-define (fun-call fd in out) 
+    (first trace))
+  (printf "The function failed property ~a with input ~a and output ~a.\n"
+          p-name
+          in
+          out)
+  (pre-print-trace (rest trace)))
+
+;; print-prop-result/tc : property-result/tc -> -
+(define (print-prop-result/tc result)
+  (match-define (property-result/tc p-name tc) 
+    result)
+  (printf "Test case [~a ~a] fails to match property ~a\n" 
+          (testcase-input tc)
+          (testcase-output tc)
+          p-name))
+
+;; pre-print-trace : (list fun-call?) -> -
+(define (pre-print-trace trace) 
+  (unless (empty? trace)
+    (printf "The following is a stack trace:\n")
+    (print-trace trace)))
 
 ;; print-trace : (list fun-calls?) -> -
 (define (print-trace fun-calls)
@@ -164,12 +195,19 @@
 (define (test-fun fd)
   (filter (λ (item) 
             (not (empty? item)))
-          (for/list ([tc (in-list (fun-defn-test-cases fd))])
-            (match-define (result success trace) 
-              (check-test-case fd tc))
-            (if success
-                empty          
-                (testcase-result tc trace)))))
+          (let ()
+            (define testcases (fun-defn-test-cases fd))
+            (flatten
+             (for/list ([tc (in-list testcases)])
+               (match-define (result success trace) 
+                 (check-test-case fd tc))
+               (define property-results
+                 (for/list ([bad-prop (check-new-tc fd tc)])
+                   (property-result/tc bad-prop tc)))
+               (if success
+                   property-results          
+                   (cons (testcase-result tc trace) 
+                         property-results)))))))
 
 ;; quick-check : fun-defn string (A -> B) integer -> 
 ;;                              (list property-result?)
@@ -209,6 +247,8 @@
     [else
      fd]))
 
+
+
 ;; INTERFACE
 
 (define (modify-fun fd)
@@ -217,7 +257,7 @@
     (printf "Edit mode")
     (modify-fun fd)]
    ["Test the function"
-    (print-results-tc (test-fun fd))
+    (print-results (test-fun fd))
     (modify-fun fd)]
    ["Add a test case"
     (printf "Enter input for test case in a list: ")
@@ -225,7 +265,7 @@
     (printf "Enter output for test case: ")
     (define tc (testcase tc-input (read)))
     (for ([bad-prop (check-new-tc fd tc)])
-      (printf "Your test cases fails to match property: ~a\n" bad-prop))
+      (print-prop-result/tc (property-result/tc bad-prop tc)))
     (modify-fun (add-test-case fd tc))]
    ["Test a property"
     (printf "Enter property name: ")
@@ -234,11 +274,11 @@
     (define count (read))
     (define new-fd (ensure-generator fd))
     (if (hash-has-key? (fun-defn-properties new-fd) name)
-        (print-results-p (quick-check new-fd 
-                                      name
-                                      (hash-ref (fun-defn-properties new-fd)
-                                                name)
-                                      count))
+        (print-results (quick-check new-fd 
+                                    name
+                                    (hash-ref (fun-defn-properties new-fd)
+                                              name)
+                                    count))
         (printf "No property exists with the name ~a\n" name))
     (modify-fun new-fd)]
    ["Add a property"
@@ -247,7 +287,7 @@
     (printf "Enter the property function: ")
     (define fun (read))
     (for ([bad-tc (check-new-prop fd fun)])
-      (printf "Your property conflicts with test case: ~a\n" bad-tc))
+      (print-prop-result/tc (property-result/tc name bad-tc)))
     (modify-fun (add-property fd name fun))]
    ["Exit"
     fd]))
@@ -255,10 +295,10 @@
 (define (debugger-step fun-defns)
   (interact
    ["Generate worklist"
-    (print-results-tc (gen-worklist fun-defns))
+    (print-results (gen-worklist fun-defns))
     fun-defns]
    ["Organize worklist"
-    (print-results-tc (gen-worklist fun-defns))
+    (print-results (gen-worklist fun-defns))
     fun-defns]
    ["Modify/test a function"
     (printf "Enter the name of the function:")
@@ -271,6 +311,10 @@
       [else 
        (begin (printf "Invalid function name.")
               fun-defns)])]))
+
+
+
+;; TESTS
 
 (define-syntax-rule (check-debugger-step in in-str out out-str)
   (let ()
