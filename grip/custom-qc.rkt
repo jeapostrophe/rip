@@ -115,7 +115,8 @@
   (match type
     ['bool (i-range 0 1)]
     ['char (i-range min-char-int max-char-int)]
-    [('string 'symbol) (i-range 0 20)]                    
+    ['string (i-range 0 20)]                    
+    ['symbol (i-range 0 20)]
     ['procedure #f]
     ['integer (i-range -1000 1000)]
     ['double (i-range -1000 1000)]))
