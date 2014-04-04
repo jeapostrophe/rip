@@ -3,6 +3,7 @@
          racket/match
          rackunit
          "model.rkt"
+         "interp.rkt"
          "interact.rkt"
          "expr-based-qc.rkt"
          "custom-qc.rkt")
@@ -21,35 +22,6 @@
 ;; <- use f's properties to generate 10 tests
 ;; -> these two fail, add them to tests or revise property?
 ;; <- add them
-
-;; INTERPRETER: xxx
-;; Anytime a function is called with input that matches a testcase then
-;; the expected output of the testcase is used. If there is not a testcase,
-;; we check the output to ensure that it fulfills all of the properties
-;; of the function and alert the user of all properties that are violated.
-
-;; check-test-case : fun-defn testcase -> result
-;; This function runs the specified function with the testcase input and
-;; produces a stack trace of all function calls with their input/output.
-(define (check-test-case fun-defns fd tc) 
-  (result #f 
-          (list (fun-call fd
-                          (testcase-input tc)
-                          (testcase-output tc)))))
-
-;; check-property : fun-defn testcase property-function -> bool
-;; This function runs the specified property with the testcase input and
-;; produces a stack trace of all function calls with their input/output.
-(define (check-property-tc fun-defns fd tc p-fun) #f)
-
-;; check-property : fun-defn input property-function -> result
-;; This function runs the specified property with the provided input and
-;; produces a stack trace of all function calls with their input/output.
-(define (check-property fun-defns fd input p-fun) 
-  (result #f 
-          (list (fun-call fd
-                          input
-                          41))))
 
 
 
@@ -100,13 +72,16 @@
 ;; check-new-tc : fun-defn testcase -> (list result?)
 (define (check-new-tc fun-defns fd tc)
   (for/list ([(name fun) (in-hash (fun-defn-properties fd))]
-             #:unless (check-property-tc fun-defns fd tc fun))
+             #:unless (check-property fun-defns 
+                                      fd 
+                                      (testcase-input tc) 
+                                      fun))
     name))
 
 ;; check-new-prop : fun-defn lambda-function -> (list result?)
 (define (check-new-prop fun-defns fd pfun)
   (for/list ([tc (in-list (fun-defn-test-cases fd))]
-             #:unless (check-property-tc fun-defns fd tc pfun))
+             #:unless (check-property fun-defns fd tc pfun))
     tc))
 
 ;; check-all-properties : fun-defn input -> (list property-result)
@@ -301,7 +276,7 @@
     (printf "Enter property name: ")
     (define name (read))
     (printf "Enter the property function: ")
-    (define fun (read))
+    (define fun (eval (read) (make-base-namespace)))
     (for ([bad-tc (check-new-prop fun-defns fd fun)])
       (print-prop-result/tc (property-result/tc name bad-tc)))
     (modify-fun (hash-set fun-defns 
@@ -358,22 +333,18 @@
          fd properties))
 
 (define f1
-  (add-test-case* (lambda->fun-defn 'f1 (λ (x y) (+ x y)))
+  (add-test-case* (lambda->fun-defn 'add (λ (x y) (+ x y)))
                   (testcase (list 2 3) 5)
                   (testcase (list 2 -8) -6)
                   (testcase (list 0 1) 1)))
 
 (define f2 
-  (add-property* (add-test-case* (lambda->fun-defn 'f2 (λ (x) (* x x x)))
-                                 (testcase (list 2) 8)
-                                 (testcase (list 3) 9)
-                                 (testcase (list -3) -9)
-                                 (testcase (list 0) 0))
-                 (cons 'increasing 
-                       (λ (x) (> (f2 x) x)))
-                 (cons 'super-increasing 
-                       (λ (x) (> (f2 x) (* x x))))))
+  (add-test-case* (lambda->fun-defn 'cube (λ (x) (* x x x)))
+                  (testcase (list 2) 8)
+                  (testcase (list 3) 9)
+                  (testcase (list -3) -9)
+                  (testcase (list 0) 0)))
 
 (debugger 
- (hasheq 'f1 f1
-         'f2 f2))
+ (hasheq 'add f1
+         'cube f2))
