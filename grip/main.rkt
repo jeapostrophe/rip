@@ -246,9 +246,10 @@
                       (custom-generator)]
                      ["Enter an expression to specifiy parameters"
                       (expr-based-generator)]
-                     ["Enter a generator function (will be wrapped in a lambda expression)"
+                     ["Enter a generator function"
+                      (printf "Write a function that takes zero aruguments and returns a list of parameters")
                       (define fun (read))
-                      (λ () (eval fun (make-base-namespace)))]))]
+                      (eval fun (make-base-namespace))]))]
     [else
      fd]))
 

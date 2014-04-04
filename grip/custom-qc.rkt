@@ -227,6 +227,7 @@
                 ["Enter a range of values"
                  (get-valid-range (valid-ranges (param-type p)))]
                 ["Enter a predicate that the value must satisfy"
+                 (printf "\nWrite a lambda function that takes one parameter and returns true or false\n")
                  (i-predicate (read))]
                 ["Enter a generator function"
                  (i-generator (read))]
@@ -252,7 +253,7 @@
      (define real-range
        (if (empty? range)
            (default-range p-type)
-           range))
+           (first range)))
      (define fun (default-generator p-type))
      (define predicates (filter i-predicate? p-info))
      (if (equal? 'procedure p-type)
@@ -261,13 +262,16 @@
            (define (generate-new-val)
              (define val (fun real-range))
              (if (empty? (for/list ([p (in-list predicates)]
-                                    #:unless ((eval (i-predicate-fun p)) val))
+                                    #:unless ((eval (i-predicate-fun p)
+                                                    (make-base-namespace)) 
+                                              val))
                            #f))  
                  val
                  (generate-new-val)))
            (generate-new-val)))]      
     [else 
-     (first generator)]))
+     (eval (i-generator-fun (first generator)) 
+           (make-base-namespace))]))
 
 ;; custom-generator : -> ( -> list?)
 (define (custom-generator)
@@ -278,9 +282,10 @@
           (positive? count))
      (define list-of-gens 
        (for/list ([i (in-range count)])
-         ((param-generator (get-valid-param)))))
+         (param-generator (get-valid-param))))
      (λ ()
-       list-of-gens)]
+       (for/list ([generator (in-list list-of-gens)])
+         (generator)))]
     [else
      (printf "Invalid number\n")
      (custom-generator)]))
