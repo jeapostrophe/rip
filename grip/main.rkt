@@ -266,13 +266,13 @@
          fd properties))
 
 (define f1
-  (add-test-case* (lambda->fun-defn 'add (λ (x y) (+ x y)))
+  (add-test-case* (lambda->fun-defn 'add '(λ (x y) (+ x y)))
                   (testcase (list 2 3) 5)
                   (testcase (list 2 -8) -6)
                   (testcase (list 0 1) 1)))
 
 (define f2 
-  (add-test-case* (lambda->fun-defn 'cube (λ (x) (* x x x)))
+  (add-test-case* (lambda->fun-defn 'cube '(λ (x) (* x x x)))
                   (testcase (list 2) 8)
                   (testcase (list 3) 9)
                   (testcase (list -3) -9)

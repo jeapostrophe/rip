@@ -70,7 +70,7 @@
               tcs))
      (define output (if matching-tc
                   (testcase-output matching-tc)
-                  (apply code params)))
+                  (apply (eval code) params)))
      (record! name params output)
      output)))
 
@@ -89,7 +89,7 @@
 ;; TESTS
 (define f1
   (fun-defn 'add 
-            (λ (x y) (+ x (+ x y)))
+            '(λ (x y) (+ x (+ x y)))
             empty
             (list (testcase (list 2 3) 5)
                   (testcase (list 2 -8) -6)
@@ -98,7 +98,7 @@
 
 (define f2 
   (fun-defn 'cube 
-            (λ (x) (* x x x))
+            '(λ (x) (* x x x))
             empty
             (list (testcase (list 2) 8)
                   (testcase (list 3) 9)
@@ -109,13 +109,29 @@
                     'super-increasing 
                     (λ (x) (> (f2 x) (* x x))))))
 
+(define f3
+  (fun-defn 'pow 
+            '(λ (base exp) 
+              (if (zero? exp)
+                  1
+                  (* base (pow base (- exp 1)))))
+            empty
+            (list (testcase (list 2 3) 8)
+                  (testcase (list 3 2) 9)
+                  (testcase (list -3 3) -27)
+                  (testcase (list 123 0) 1)
+                  (testcase (list 0 0) 1)
+                  (testcase (list 0 1) 0))
+            (hasheq)))
+
 (define fun-defns (hasheq 'f1 f1
-                          'f2 f2))
+                          'f2 f2
+                          'f3 f3))
 
 (define (test-add-assumed-fds)
   (define test-ns (make-base-namespace))
   (parameterize ([current-namespace test-ns])
-    (add-assumed-fds-to-ns! (list f1 f2))
+    (add-assumed-fds-to-ns! (hash-values fun-defns))
     (check-true (list? (member (fun-defn-name f1) 
                                (namespace-mapped-symbols test-ns))))
     (check-true (list? (member (fun-defn-name f2) 
@@ -158,9 +174,11 @@
 (check-false (result-success (check-test-case fun-defns 
                                               f1 
                                               (testcase (list 2 3) 5))))
+
+;;test recursion
 (check-true (result-success (check-test-case fun-defns 
-                                             f1 
-                                             (testcase (list 2 3) 7))))
+                                             f3 
+                                             (testcase (list 5 2) 25))))
 
 (provide check-test-case
          check-property)

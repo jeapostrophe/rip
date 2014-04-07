@@ -9,7 +9,7 @@
 ;;            (list (testcase A B)) (hasheq symbol (property A B))
 ;;(struct fun-defn (name code param-types test-cases properties))
 (struct/ctc fun-defn ([name symbol?] 
-                      [code procedure?] 
+                      [code any/c] 
                       [generator any/c] 
                       [test-cases list?] 
                       [properties hash?]))
