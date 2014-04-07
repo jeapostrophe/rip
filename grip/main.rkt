@@ -27,10 +27,6 @@
 
 ;; EDITOR
 
-;; lambda->fun-defn : string (A -> B) -> fun-defn
-(define (lambda->fun-defn name lam)
-  (fun-defn name lam empty empty (hasheq)))
-
 ;; set-generator : fun-defn ( -> list?) -> fun-defn
 (define (set-generator fd gen)
   (struct-copy fun-defn fd
@@ -81,7 +77,10 @@
 ;; check-new-prop : fun-defn lambda-function -> (list result?)
 (define (check-new-prop fun-defns fd pfun)
   (for/list ([tc (in-list (fun-defn-test-cases fd))]
-             #:unless (check-property fun-defns fd tc pfun))
+             #:unless (check-property fun-defns 
+                                      fd 
+                                      (λ () (testcase-input tc)) 
+                                      pfun))
     tc))
 
 ;; check-all-properties : fun-defn input -> (list property-result)
@@ -204,7 +203,7 @@
   (match-define (result success trace) 
     (check-property fun-defns 
                     fd 
-                    ((fun-defn-generator fd)) 
+                    (fun-defn-generator fd) 
                     p-fun))
   (if success
       empty
@@ -223,8 +222,7 @@
                       (expr-based-generator)]
                      ["Enter a generator function"
                       (printf "Write a function that takes zero aruguments and returns a list of parameters")
-                      (define fun (read))
-                      (eval fun (make-base-namespace))]))]
+                      (read)]))]
     [else
      fd]))
 
@@ -276,7 +274,7 @@
     (printf "Enter property name: ")
     (define name (read))
     (printf "Enter the property function: ")
-    (define fun (eval (read) (make-base-namespace)))
+    (define fun (read))
     (for ([bad-tc (check-new-prop fun-defns fd fun)])
       (print-prop-result/tc (property-result/tc name bad-tc)))
     (modify-fun (hash-set fun-defns 

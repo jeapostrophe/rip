@@ -10,8 +10,7 @@
 ;;(struct fun-defn (name code param-types test-cases properties))
 (struct/ctc fun-defn ([name symbol?] 
                       [code procedure?] 
-                      [generator (or/c null?
-                                       procedure?)] 
+                      [generator any/c] 
                       [test-cases list?] 
                       [properties hash?]))
 ;; testcase : (list values) value
@@ -30,9 +29,9 @@
 ;;(struct property-result/tc (property-name tc))
 (struct/ctc property-result/tc ([property-name symbol?] 
                              [tc testcase?]))
-;; fun-call : fun-defn (list values) value
-;;(struct fun-call (fd input output))
-(struct/ctc fun-call ([fd fun-defn?] 
+;; fun-call : symbol (list values) value
+;;(struct fun-call (fun-name input output))
+(struct/ctc fun-call ([fun-name symbol?] 
                   [input list?]
                   [output any/c]))
 ;; result : bool (list fun-call fd in out)  
