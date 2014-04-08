@@ -1,4 +1,5 @@
 #lang racket/base
+
 (require racket/list
          racket/match
          rackunit
@@ -8,22 +9,6 @@
          "interact.rkt"
          "expr-based-qc.rkt"
          "custom-qc.rkt")
-
-;; A Racket function is CODE
-
-;; A Cracket function is CODE + TESTS + PROPERTIES
-
-;; Debugger : Worklist -> Worklist repeats until WL is empty
-
-;; Worklist = { f's first test, g's second test }
-;; -> fails on g's second test
-;; <- add assumption about f
-;; -> checks to see if assumption is true, but isn't
-;; Worklist = { f's first test, g's second test, f's second test }
-;; <- use f's properties to generate 10 tests
-;; -> these two fail, add them to tests or revise property?
-;; <- add them
-
 
 
 ;; DEBUGGER
@@ -51,7 +36,8 @@
     result)
   (match-define (fun-call fd in out) 
     (first trace))
-  (printf "Test case with input ~a, produced ~a instead of ~a.\n"
+  (printf "Test case for \"~a\" with input ~a, produced ~a, expected ~a.\n"
+          fd
           in
           out
           (testcase-output tc))
@@ -93,8 +79,8 @@
      (match-define (list-rest (fun-call fd input output) 
                               rest-trace) 
        fun-calls)
-     (printf "~a called with input: ~a and output: ~a\n"
-             (fun-defn-name fd)
+     (printf "\"~a\" called with input: ~a and output: ~a\n"
+             fd
              input
              output)
      (print-trace rest-trace)]))
@@ -148,15 +134,16 @@
   (cond 
     [(empty? (fun-defn-generator fd))     
      (printf "No generator for function parameters currently exists.\n")
-     (set-generator fd
-                    (interact
-                     ["Enter information about parameters"
-                      (custom-generator)]
-                     ["Enter an expression to specifiy parameters"
-                      (expr-based-generator)]
-                     ["Enter a generator function"
-                      (printf "Write a function that takes zero aruguments and returns a list of parameters")
-                      (read)]))]
+     (set-generator 
+      fd
+      (interact
+       ["Enter information about parameters"
+        (custom-generator)]
+       ["Enter an expression to specifiy parameters"
+        (expr-based-generator)]
+       ["Enter a generator function"
+        (printf "Write a function that takes zero aruguments and returns a list of parameters")
+        (read)]))]
     [else
      fd]))
 
@@ -278,9 +265,25 @@
                   (testcase (list -3) -9)
                   (testcase (list 0) 0)))
 
+(define f3
+  (fun-defn 'pow 
+            '(λ (base exp) 
+               (if (zero? exp)
+                   1
+                   (add base (pow base (- exp 1)))))
+            empty
+            (list (testcase (list 2 3) 8)
+                  (testcase (list 3 2) 9)
+                  (testcase (list -3 3) -27)
+                  (testcase (list 123 0) 1)
+                  (testcase (list 0 0) 1)
+                  (testcase (list 0 1) 0))
+            (hasheq)))
+
 (define (debugger fun-defns)
   (debugger (debugger-step fun-defns)))
 
 (debugger 
  (hasheq 'add f1
-         'cube f2))
+         'cube f2
+         'pow f3))

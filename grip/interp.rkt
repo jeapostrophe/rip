@@ -137,12 +137,15 @@
   (parameterize ([current-namespace test-ns]
                  [current-records-box rb])
     (add-assumed-fds-to-ns! (hash-values fun-defns))
-    (check-true (list? (member (fun-defn-name f1) 
-                               (namespace-mapped-symbols test-ns))))
-    (check-true (list? (member (fun-defn-name f2) 
-                               (namespace-mapped-symbols test-ns))))
-    (check-false (list? (member 'oatmeal 
-                                (namespace-mapped-symbols test-ns))))
+    (check-true 
+     (list? (member (fun-defn-name f1) 
+                    (namespace-mapped-symbols test-ns))))
+    (check-true 
+     (list? (member (fun-defn-name f2) 
+                    (namespace-mapped-symbols test-ns))))
+    (check-false 
+     (list? (member 'oatmeal 
+                    (namespace-mapped-symbols test-ns))))
     (check-equal? ((eval '(λ () (add 2 3)))) 5)
     (check-equal? ((eval '(λ () (add 2 -8)))) -6)
     (check-equal? ((eval '(λ () (add 0 1)))) 1)
@@ -170,21 +173,24 @@
 
 (test-records)
 
-(check-false (result-success (check-property (hasheq 'f1 f1 
-                                                     'f2 f2) 
-                                             f1 
-                                             '(λ () 
-                                                (list (random))) 
-                                             '(λ (r) 
-                                                (< r (cube r))))))
-(check-false (result-success (check-test-case fun-defns 
-                                              f1 
-                                              (testcase (list 2 3) 5))))
+(check-false (result-success 
+              (check-property (hasheq 'f1 f1 
+                                      'f2 f2) 
+                              f1 
+                              '(λ () 
+                                 (list (random))) 
+                              '(λ (r) 
+                                 (< r (cube r))))))
+(check-false (result-success 
+              (check-test-case fun-defns 
+                               f1 
+                               (testcase (list 2 3) 5))))
 
 ;;test recursion
-(check-true (result-success (check-test-case fun-defns 
-                                             f3 
-                                             (testcase (list 5 2) 25))))
+(check-true (result-success 
+             (check-test-case fun-defns 
+                              f3 
+                              (testcase (list 5 2) 25))))
 
 (provide check-test-case
          check-property)
