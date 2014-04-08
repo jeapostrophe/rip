@@ -5,13 +5,14 @@
          racket/list
          "model.rkt")
 
-;; records : (list fun-call)
-(define records empty)
+;; current-records-box :  -> box
+(define current-records-box (make-parameter #f))
 
-;; record! : string (list value) value -> -
+;; record! : string (list value) value
 (define (record! f i o)
-  (set! records (cons (fun-call f i o) 
-                      records)))
+  (define rb (current-records-box))
+  (set-box! rb (cons (fun-call f i o) 
+                     (unbox rb))))
 
 ;; Anytime a function is called with input that matches a testcase then
 ;; the expected output of the testcase is used. If there is not a testcase,
@@ -21,37 +22,39 @@
 ;; check-test-case : (list fun-defn) fun-defn testcase -> result
 ;; This function runs the specified function with the testcase input and
 ;; produces a stack trace of all function calls with their input/output.
-(define (check-test-case fun-defns fd tc)
-  (set! records empty)
-  (match-define (testcase input output) tc)
-  (define ns (make-base-namespace))
-  (parameterize ([current-namespace ns])
-    (add-assumed-fds-to-ns! (remove fd 
-                                    (hash-values fun-defns)))
-    (add-test-fd-to-ns! fd input)
-    (result (equal? (apply (eval (fun-defn-name fd))
-                           input)
-                    output) 
-            records)))
+(define (check-test-case . params)
+  (record-result 
+   (λ (fun-defns fd tc)
+     (match-define (testcase input output) tc)
+     (add-assumed-fds-to-ns! (remove fd 
+                                     (hash-values fun-defns)))
+     (add-test-fd-to-ns! fd input)
+     (equal? (apply (eval (fun-defn-name fd))
+                    input)
+             output))
+   params))
 
 ;; check-property : (list fun-defn) fun-defn ( -> list) ( -> bool) -> result
 ;; This function runs the specified property with the provided input and
 ;; produces a stack trace of all function calls with their input/output.
-(define (check-property fun-defns fd generator-fun p-fun)
-  (set! records empty)
-  (define ns (make-base-namespace))
-  (parameterize ([current-namespace ns])
-    (add-assumed-fds-to-ns! (remove fd 
-                                    (hash-values fun-defns)))
-    (define input ((eval generator-fun)))
-    (add-test-fd-to-ns! fd input)
-    (result (apply (eval p-fun) input) 
-            records)))
+(define (check-property . params)
+  (record-result 
+   (λ (fun-defns fd generator-fun p-fun)
+     (add-assumed-fds-to-ns! (remove fd 
+                                     (hash-values fun-defns)))
+     (define input ((eval generator-fun)))
+     (add-test-fd-to-ns! fd input)
+     (apply (eval p-fun) input))
+   params))
 
-(define (run-fun fun-defns fun)
+;; record-result : (A -> B) list -> result
+(define (record-result fun params)
+  (define rb (box empty))
   (define ns (make-base-namespace))
-  (parameterize ([current-namespace ns])
-    (add-assumed-fds-to-ns! (hash-values fun-defns))))
+  (parameterize ([current-namespace ns]
+                 [current-records-box rb])
+    (result (apply fun params) 
+            (unbox rb))))
 
 ;; add-assumed-fds-to-ns! (list fun-defn) -> -
 (define (add-assumed-fds-to-ns! fds)
@@ -69,8 +72,8 @@
                 (equal? (testcase-input tc) params))
               tcs))
      (define output (if matching-tc
-                  (testcase-output matching-tc)
-                  (apply (eval code) params)))
+                        (testcase-output matching-tc)
+                        (apply (eval code) params)))
      (record! name params output)
      output)))
 
@@ -112,9 +115,9 @@
 (define f3
   (fun-defn 'pow 
             '(λ (base exp) 
-              (if (zero? exp)
-                  1
-                  (* base (pow base (- exp 1)))))
+               (if (zero? exp)
+                   1
+                   (* base (pow base (- exp 1)))))
             empty
             (list (testcase (list 2 3) 8)
                   (testcase (list 3 2) 9)
@@ -129,8 +132,10 @@
                           'f3 f3))
 
 (define (test-add-assumed-fds)
+  (define rb (box empty))
   (define test-ns (make-base-namespace))
-  (parameterize ([current-namespace test-ns])
+  (parameterize ([current-namespace test-ns]
+                 [current-records-box rb])
     (add-assumed-fds-to-ns! (hash-values fun-defns))
     (check-true (list? (member (fun-defn-name f1) 
                                (namespace-mapped-symbols test-ns))))
@@ -145,22 +150,23 @@
     (check-equal? ((eval '(λ () (cube 3)))) 9)
     (check-equal? ((eval '(λ () (cube -3)))) -9)
     (check-equal? ((eval '(λ () (cube 0)))) 0)
-    (check-equal? (length records) 7)
+    (check-equal? (length (unbox rb)) 7)
     
     (check-equal? ((eval '(λ () (add 2 10)))) 14)
     (check-equal? ((eval '(λ () (add 5 5)))) 15)
     (check-equal? ((eval '(λ () (add 1 50)))) 52)
-    (check-equal? (length records) 10)))
+    (check-equal? (length (unbox rb)) 10)))
 
 (test-add-assumed-fds)
 
 (define (test-records) 
-  (set! records empty)
+  (define rb (box empty))
   (define test-ns (make-base-namespace))
-  (parameterize ([current-namespace test-ns])
+  (parameterize ([current-namespace test-ns]
+                 [current-records-box rb])
     (add-assumed-fds-to-ns! (list f1 f2))
     (check-equal? ((eval '(λ () (add 2 3)))) 5)
-    (check-equal? (length records) 1)))
+    (check-equal? (length (unbox rb)) 1)))
 
 (test-records)
 
