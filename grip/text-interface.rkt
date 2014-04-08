@@ -11,14 +11,6 @@
          "custom-qc.rkt")
 
 
-;; DEBUGGER
-
-;; gen-worklist : (list fun-defn) -> (list testcase-result)
-(define (gen-worklist fun-defns)
-  (append* 
-   (for/list ([fd (in-hash-values fun-defns)])
-     (test-fun fun-defns (fun-defn-name fd)))))
-
 ;; print-results : (list testcase-result) -> -
 (define (print-results results)
   (for ([result (in-list results)])
@@ -85,49 +77,6 @@
              output)
      (print-trace rest-trace)]))
 
-;; test-fun : (hasheq string fun-defn) string -> testcase-result
-(define (test-fun fun-defns fd-name)
-  (define fd 
-    (hash-ref fun-defns
-              fd-name))
-  (define testcases 
-    (fun-defn-test-cases fd))
-  (flatten
-   (for/list ([tc (in-list testcases)])
-     (match-define (result success trace) 
-       (check-test-case fun-defns fd tc))
-     (define property-results
-       (for/list ([bad-prop (check-new-tc fun-defns fd tc)])
-         (property-result/tc bad-prop tc)))
-     (if success
-         property-results          
-         (cons (testcase-result tc trace) 
-               property-results)))))
-
-;; quick-check : fun-defn string (A -> B) integer -> 
-;;                              (list property-result?)
-(define (quick-check fun-defns fd-name p-name p-fun count)   
-  (printf "Running quick check...\n")
-  (filter (λ (item) 
-            (not (empty? item)))
-          (for/list ([i (in-range count)])
-            (quick-check-once fun-defns
-                              fd-name
-                              p-name
-                              p-fun))))
-
-;; quick-check-once : fun-defn string (A -> B) -> 
-;;                              (list property-result?)
-(define (quick-check-once fun-defns fd-name p-name p-fun)
-  (define fd (hash-ref fun-defns fd-name))
-  (match-define (result success trace) 
-    (check-property fun-defns 
-                    fd 
-                    (fun-defn-generator fd) 
-                    p-fun))
-  (if success
-      empty
-      (property-result p-name trace)))
 
 ;; ensure-generator : fun-defn -> fun-defn
 (define (ensure-generator fd)
@@ -146,10 +95,6 @@
         (read)]))]
     [else
      fd]))
-
-
-
-;; INTERFACE
 
 (define (modify-fun fun-defns fd-name)
   (define fd (hash-ref fun-defns fd-name))
