@@ -3,6 +3,7 @@
 (require rackunit
          racket/match
          racket/list
+         racket/function
          "model.rkt")
 
 ;; current-records-box :  -> box
@@ -22,38 +23,36 @@
 ;; check-test-case : (list fun-defn) fun-defn testcase -> result
 ;; This function runs the specified function with the testcase input and
 ;; produces a stack trace of all function calls with their input/output.
-(define (check-test-case . params)
+(define (check-test-case fun-defns fd tc)
   (record-result 
-   (λ (fun-defns fd tc)
+   (thunk
      (match-define (testcase input output) tc)
      (add-assumed-fds-to-ns! (remove fd 
                                      (hash-values fun-defns)))
      (add-test-fd-to-ns! fd input)
      (equal? (apply (eval (fun-defn-name fd))
                     input)
-             output))
-   params))
+             output))))
 
 ;; check-property : (list fun-defn) fun-defn ( -> list) ( -> bool) -> result
 ;; This function runs the specified property with the provided input and
 ;; produces a stack trace of all function calls with their input/output.
-(define (check-property . params)
+(define (check-property fun-defns fd generator-fun p-fun)
   (record-result 
-   (λ (fun-defns fd generator-fun p-fun)
+   (thunk
      (add-assumed-fds-to-ns! (remove fd 
                                      (hash-values fun-defns)))
      (define input ((eval generator-fun)))
      (add-test-fd-to-ns! fd input)
-     (apply (eval p-fun) input))
-   params))
+     (apply (eval p-fun) input))))
 
 ;; record-result : (A -> B) list -> result
-(define (record-result fun params)
+(define (record-result fun)
   (define rb (box empty))
   (define ns (make-base-namespace))
   (parameterize ([current-namespace ns]
                  [current-records-box rb])
-    (result (apply fun params) 
+    (result (fun) 
             (unbox rb))))
 
 ;; add-assumed-fds-to-ns! (list fun-defn) -> -
