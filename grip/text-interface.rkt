@@ -49,7 +49,7 @@
 
 ;; print-prop-result/tc : property-result/tc -> -
 (define (print-prop-result/tc result)
-  (match-define (property-result/tc p-name tc) 
+  (match-define (property-result/tc fd-name p-name tc) 
     result)
   (printf "Test case [~a ~a] fails to match property ~a\n" 
           (testcase-input tc)
@@ -111,7 +111,7 @@
     (printf "Enter output for test case: ")
     (define tc (testcase tc-input (read)))
     (for ([bad-prop (check-new-tc fun-defns fd tc)])
-      (print-prop-result/tc (property-result/tc bad-prop tc)))
+      (print-prop-result/tc (property-result/tc fd-name bad-prop tc)))
     (modify-fun (hash-set fun-defns 
                           fd-name
                           (add-test-case fd tc))
@@ -142,7 +142,7 @@
     (printf "Enter the property function: ")
     (define fun (read))
     (for ([bad-tc (check-new-prop fun-defns fd fun)])
-      (print-prop-result/tc (property-result/tc name bad-tc)))
+      (print-prop-result/tc (property-result/tc fd-name name bad-tc)))
     (modify-fun (hash-set fun-defns 
                           fd-name
                           (add-property fd name fun))

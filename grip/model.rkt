@@ -20,20 +20,21 @@
 ;; testcase-result : testcase (list fun-call)
 ;;(struct testcase-result (tc trace))
 (struct/ctc testcase-result ([tc testcase?] 
-                         [trace (non-empty-listof fun-call?)]))
+                             [trace (non-empty-listof fun-call?)]))
 ;; property-result : string (list fun-call)
 ;;(struct property-result (property-name trace))
 (struct/ctc property-result ([property-name symbol?] 
                              [trace (non-empty-listof fun-call?)]))
-;; property-result/tc : string testcase
-;;(struct property-result/tc (property-name tc))
-(struct/ctc property-result/tc ([property-name symbol?] 
-                             [tc testcase?]))
+;; property-result/tc : string string testcase
+;;(struct property-result/tc (fd-name property-name tc))
+(struct/ctc property-result/tc ([fd-name symbol?]
+                                [property-name symbol?] 
+                                [tc testcase?]))
 ;; fun-call : symbol (list values) value
 ;;(struct fun-call (fun-name input output))
 (struct/ctc fun-call ([fun-name symbol?] 
-                  [input list?]
-                  [output any/c]))
+                      [input list?]
+                      [output any/c]))
 ;; result : bool (list fun-call fd in out)  
 ;;(struct result (success trace))
 
