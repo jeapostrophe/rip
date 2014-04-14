@@ -26,13 +26,13 @@
 (define (check-test-case fun-defns fd tc)
   (record-result 
    (thunk
-     (match-define (testcase input output) tc)
-     (add-assumed-fds-to-ns! (remove fd 
-                                     (hash-values fun-defns)))
-     (add-test-fd-to-ns! fd input)
-     (equal? (apply (eval (fun-defn-name fd))
-                    input)
-             output))))
+    (match-define (testcase input output) tc)
+    (add-assumed-fds-to-ns! (remove fd 
+                                    (hash-values fun-defns)))
+    (add-test-fd-to-ns! fd input)
+    (equal? (apply (eval (fun-defn-name fd))
+                   input)
+            output))))
 
 ;; check-property : (list fun-defn) fun-defn ( -> list) ( -> bool) -> result
 ;; This function runs the specified property with the provided input and
@@ -40,11 +40,11 @@
 (define (check-property fun-defns fd generator-fun p-fun)
   (record-result 
    (thunk
-     (add-assumed-fds-to-ns! (remove fd 
-                                     (hash-values fun-defns)))
-     (define input ((eval generator-fun)))
-     (add-test-fd-to-ns! fd input)
-     (apply (eval p-fun) input))))
+    (add-assumed-fds-to-ns! (remove fd 
+                                    (hash-values fun-defns)))
+    (define input ((eval generator-fun)))
+    (add-test-fd-to-ns! fd input)
+    (apply (eval p-fun) input))))
 
 ;; record-result : (A -> B) list -> result
 (define (record-result fun)
@@ -107,9 +107,9 @@
                   (testcase (list -3) -9)
                   (testcase (list 0) 0))
             (hasheq 'increasing 
-                    (λ (x) (> (f2 x) x))
+                    '(λ (x) (> (cube x) x))
                     'super-increasing 
-                    (λ (x) (> (f2 x) (* x x))))))
+                    '(λ (x) (> (cube x) (* x x))))))
 
 (define f3
   (fun-defn 'pow 
@@ -126,9 +126,9 @@
                   (testcase (list 0 1) 0))
             (hasheq)))
 
-(define fun-defns (hasheq 'f1 f1
-                          'f2 f2
-                          'f3 f3))
+(define fun-defns (hasheq 'add f1
+                          'cube f2
+                          'pow f3))
 
 (define (test-add-assumed-fds)
   (define rb (box empty))
@@ -172,14 +172,21 @@
 
 (test-records)
 
-(check-false (result-success 
-              (check-property (hasheq 'f1 f1 
-                                      'f2 f2) 
-                              f1 
-                              '(λ () 
-                                 (list (random))) 
-                              '(λ (r) 
-                                 (< r (cube r))))))
+(for ([i (in-range 50)])
+  (check-false (result-success 
+                (check-property fun-defns 
+                                f1 
+                                '(λ () 
+                                   (list (random))) 
+                                '(λ (r) 
+                                   (< r (cube r))))))
+  (check-true (result-success 
+               (check-property fun-defns 
+                               f1 
+                               '(λ () 
+                                  (list (+ 45 (random 45)))) 
+                               '(λ (r) 
+                                  (< r (cube r)))))))
 (check-false (result-success 
               (check-test-case fun-defns 
                                f1 

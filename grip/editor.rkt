@@ -11,6 +11,12 @@
                [generator
                 gen]))
 
+;; set-code : fun-defn (A -> B) -> fun-defn
+(define (set-code fd c)
+  (struct-copy fun-defn fd
+               [code
+                c]))
+
 ;; add-test-case : fun-defn testcase -> fun-defn
 (define (add-test-case fd tc)
   (struct-copy fun-defn fd
@@ -48,7 +54,7 @@
   (for/list ([(name fun) (in-hash (fun-defn-properties fd))]
              #:unless (check-property fun-defns 
                                       fd 
-                                      (testcase-input tc) 
+                                      (λ () (testcase-input tc)) 
                                       fun))
     name))
 
@@ -64,9 +70,15 @@
 ;; check-all-properties : fun-defn input -> (list property-result)
 (define (check-all-properties fun-defns fd input)
   (for/list ([(p-name p-fun) (in-hash fun-defn-properties fd)]
-             #:unless (result-success (check-property fun-defns fd input p-fun)))
+             #:unless (result-success (check-property fun-defns 
+                                                      fd 
+                                                      (λ () input) 
+                                                      p-fun)))
     (property-result p-name
-                     (result-trace (check-property fun-defns fd input p-fun)))))
+                     (result-trace (check-property fun-defns 
+                                                   fd 
+                                                   (λ () input)
+                                                   p-fun)))))
 
 
 ;; test-fun : (hasheq string fun-defn) string -> testcase-result
@@ -118,5 +130,48 @@
   (append* 
    (for/list ([fd (in-hash-values fun-defns)])
      (test-fun fun-defns (fun-defn-name fd)))))
+
+
+;; TESTS
+(define fun1
+  (fun-defn 'add 
+            '(λ (x y) (+ x (+ x y)))
+            empty
+            (list (testcase (list 2 3) 5)
+                  (testcase (list 2 -8) -6)
+                  (testcase (list 0 1) 1))
+            (hasheq)))
+
+(define fun2 
+  (fun-defn 'cube 
+            '(λ (x) (* x x x))
+            empty
+            (list (testcase (list 2) 8)
+                  (testcase (list 3) 9)
+                  (testcase (list -3) -9)
+                  (testcase (list 0) 0))
+            (hasheq 'increasing 
+                    '(λ (x) (> (cube x) x))
+                    'super-increasing 
+                    '(λ (x) (> (cube x) (* x x))))))
+
+(define fun3
+  (fun-defn 'pow 
+            '(λ (base exp) 
+               (if (zero? exp)
+                   1
+                   (* base (pow base (- exp 1)))))
+            empty
+            (list (testcase (list 2 3) 8)
+                  (testcase (list 3 2) 9)
+                  (testcase (list -3 3) -27)
+                  (testcase (list 123 0) 1)
+                  (testcase (list 0 0) 1)
+                  (testcase (list 0 1) 0))
+            (hasheq)))
+
+(define fun-defns (hasheq 'add fun1
+                          'cube fun2
+                          'pow fun3))
 
 (provide (all-defined-out))
