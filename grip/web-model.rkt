@@ -1,16 +1,9 @@
 #lang racket/base
 
 (require racket/list
-         "model.rkt")
+         "model.rkt"
+         "editor.rkt")
 
-(struct program (fun-defns) #:mutable)
-(struct results (rs) #:mutable)
-
-(define (insert-fd! prog fd)
-  (set-program-fun-defns! prog
-                          (hash-set (program-fun-defns prog)
-                                    (fun-defn-name fd) 
-                                    fd)))
 
 
 
@@ -25,7 +18,8 @@
             (list (testcase (list 2 3) 5)
                   (testcase (list 2 -8) -6)
                   (testcase (list 0 1) 1))
-            (hasheq)))
+            (hasheq 'increasing
+                    '(λ (x y) (< x (add x y))))))
 
 (define f2 
   (fun-defn 'cube 
@@ -52,15 +46,17 @@
                   (testcase (list 0 1) 0))
             (hasheq)))
 
-(define FDs 
-  (program (hasheq 'add f1 
-                   'cube f2 
-                   'pow f3)))
+(define FUN-DEFNS (make-hash 
+                   (list (cons 'add f1) 
+                         (cons 'cube f2) 
+                         (cons 'pow f3))))
 
-(define RESULTs 
-  (results (list (testcase-result (testcase (list 1 2) 3)
-                                  (list (fun-call 'add (list 1 2) 3)
-                                        (fun-call 'add (list 1 1) 2)
-                                        (fun-call 'add (list 1 0) 1))))))
+(define RESULTS 
+  (list (testcase-result (testcase (list 1 2) 3)
+                         (list (fun-call 'add (list 1 2) 3)
+                               (fun-call 'add (list 1 1) 2)
+                               (fun-call 'add (list 1 0) 1)))))
+
+(gen-worklist FUN-DEFNS)
 
 (provide (all-defined-out))
