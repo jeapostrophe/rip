@@ -20,8 +20,6 @@
 (define-runtime-path htdocs "htdocs")
 
 ;; xxx To Do List
-;; - make test cases deletable
-;; - make properties deletable
 ;; - adding quick check
 
 
@@ -35,56 +33,138 @@
  [("grip") grip])
 
 (define-syntax-rule 
+  (define-action (embed-id args ...)
+    #:url url-pattern
+    display-fun
+    link-expr)
+  (begin 
+    (dispatch-rules! grip-container [url-pattern action-id])
+    (define (embed-id args ...)
+      (display-fun (grip-url action-id args ...)))
+    (define (action-id req args ...)
+      (link-expr req)
+      (redirect-to (grip-url grip)))))
+
+(define-syntax-rule 
   (define-formlet-action (embed-id args ...)
     title
     #:url url-pattern
     formlet-expr)
-  (begin 
-    (dispatch-rules! grip-container [url-pattern action-id])
+  (begin
     (define (formlet-id args ...)
       formlet-expr)
-    (define (embed-id args ...)
-      `(div ((class "well well-sm"))
-            (form ((action ,(grip-url action-id args ...)))
-                  (legend ,title)
-                  ,@(formlet-display (formlet-id args ...))
-                  (div ((class "form-group"))
-                       (button ((class "btn btn-default")
-                                (type "submit"))
-                               "Save")))))
-    (define (action-id req args ...)
-      (formlet-process (formlet-id args ...) req)
-      (redirect-to (grip-url grip)))))
+    (define-action (embed-id args ...)
+      #:url url-pattern
+      (λ (some-url)
+        `(div ((class "well well-sm"))
+              (form ((action ,some-url))
+                    (legend ,title)
+                    ,@(formlet-display (formlet-id args ...))
+                    (div ((class "form-group"))
+                         (button ((class "btn btn-default")
+                                  (type "submit"))
+                                 "Save")))))
+      (λ (req)
+        (formlet-process (formlet-id args ...) req)))))
+
+(define-syntax-rule 
+  (define-modal-action (embed-id args ...)
+    title
+    #:url url-pattern
+    formlet-expr)
+  (begin
+    (define (formlet-id args ...)
+      formlet-expr)
+    (define-action (embed-id args ...)
+      #:url url-pattern
+      (λ (some-url)
+        `(div ((class "modal"))
+              (div ((class "modal-dialog"))
+                   (div ((class "modal-content"))
+                        (form ((action ,some-url))
+                              (div ((class "modal-header"))
+                                   (button ((type "button")
+                                            (class "close")
+                                            (data-dismiss "modal")
+                                            (aria-hidden "true"))
+                                           "×")
+                                   (h4 ((class "modal-title"))
+                                       "QuickCheck Results"))
+                              (div ((class "modal-body"))
+                                   ,@(formlet-display (formlet-id args ...)))
+                              (div ((class "modal-footer"))
+                                   (button ((type "button")
+                                            (data-dismiss "modal")
+                                            (class "btn btn-default"))
+                                           "Close")
+                                   (button ((type "sumbit")
+                                            (class "btn btn-primary"))
+                                           "Add new test cases")))))))
+      (λ (req)
+        (formlet-process (formlet-id args ...) req)))))
+
+(define-syntax-rule
+  (define-link-action (embed-id args ...)
+    #:url url-pattern
+    link-text-expr
+    link-expr)  
+  (define-action (embed-id args ...)
+    #:url url-pattern
+    (λ (some-url) 
+      `(tr 
+        link-text-expr
+        (td (a ((class "close")
+                (href ,some-url)) "×"))))
+    (λ (req) link-expr)))
 
 
 ;; HANDLERS
 
-(define (grip req)
-  (define results (gen-worklist FUN-DEFNS))
-  (response/xexpr
-   `(html
-     (head (title "GRIP")
-           (link ((rel "stylesheet")
-                  (href "/bootstrap.min.css")
-                  (type "text/css")))
-           (script ((src "//code.jquery.com/jquery-latest.min.js")
-                    (type "text/javascript")))
-           (script ((src "/bootstrap.min.js")
-                    (type "text/javascript")))
-           (script ((src "/bootswatch.js")
-                    (type "text/javascript"))))
-     (body 
-      (div ((class "container"))
-           (div ((class "page-header"))
-                (div ((class "row"))
-                     (h1 "Guided Racket Interactive Programming")
-                     (p ((class "lead"))
-                        "A test driven approach to programming")))
-           (div ((class "row"))
-                ,(render-fd-panel)
-                ,(render-results-panel results)))))))
+(define-modal-action (add-qc-results fd-name)
+  "QuickCheck Results"
+  #:url ("grip" "fun" (string-arg) "qc-results")
+  (formlet
+   (table ((class "table"))
+          (thead
+           (tr
+            (th "Function")
+            (th "Violated Property")
+            (th "Input")
+            (th "Output")))
+          (tbody 
+           ,@(map (λ (result)
+                    (match-define (property-result p-name trace) 
+                      result)
+                    (match-define (fun-call fd in out) 
+                      (first trace))
+                    `(tr ((class "danger"))
+                         (td ,(to-str fd))
+                         (td ,(to-str p-name))
+                         (td ,(to-str in))
+                         (td ,(to-str out)))) 
+                  (output-results QC-RESULTS))))
+   (hash-set! FUN-DEFNS 
+              (string->symbol fd-name)
+              (foldr (λ (result fd)
+                       (match-define (fun-call fd-call-name in out) 
+                         (first (property-result-trace result)))
+                       (add-test-case fd (testcase in out)))
+                     (hash-ref FUN-DEFNS 
+                               (string->symbol fd-name))
+                     (output-results QC-RESULTS)))))
 
-(define (grip-results results req)
+(define (grip req)
+  (define (qc-results) 
+    (define results (output-results QC-RESULTS))
+    (cond 
+      [(empty? results)
+       `(div)]
+      [else
+       (define fd-name 
+         (fun-call-fun-name (first (property-result-trace result))))
+       (add-qc-results fd-name)]))
+  
+  
   (response/xexpr
    `(html
      (head (title "GRIP")
@@ -105,8 +185,9 @@
                      (p ((class "lead"))
                         "A test driven approach to programming")))
            (div ((class "row"))
+                ,(qc-results)
                 ,(render-fd-panel)
-                ,(render-results-panel results)))))))
+                ,(render-results-panel)))))))
 
 (define-formlet-action (add-new-fd)
   "Add a new function"
@@ -165,6 +246,18 @@
                             (string->symbol p-name)
                             (to-racket p-fun)))))
 
+(define-link-action (remove-prop fd-name p-name code)
+  #:url ("grip" "fun" (string-arg) "p-name" (string-arg)
+                "p-fun" (string-arg))
+  (div 
+   (td ,p-name)
+   (td ,code))   
+  (hash-set! FUN-DEFNS
+             (string->symbol fd-name)
+             (rm-property (hash-ref FUN-DEFNS
+                                    (string->symbol fd-name)) 
+                          (string->symbol p-name))))
+
 (define-formlet-action (edit-code name code)
   "Edit the code below"
   #:url ("grip" "fun" (string-arg) "code" (string-arg))
@@ -172,7 +265,8 @@
    (div ((class "form-group"))
         ,{(to-string 
            (required 
-            (text-input #:value (string->bytes/utf-8 code)))) . => . new-code})
+            (text-input #:value 
+                        (string->bytes/utf-8 code)))) . => . new-code})
    (hash-set! FUN-DEFNS
               (string->symbol name)
               (set-code (hash-ref FUN-DEFNS
@@ -196,7 +290,6 @@
          (label ((class "col-lg-2 control-label"))
                 "Number of times to test ") 
          ,{input-int . => . qc-count}))
-   ;; what to do here?
    (quick-check FUN-DEFNS 
                 (string->symbol fd-name) 
                 (string->symbol p-name) 
@@ -205,7 +298,6 @@
                                      (string->symbol fd-name)))
                           (string->symbol p-name)) 
                 qc-count)))
-
 
 
 
@@ -310,26 +402,26 @@
          `(table ((class "table"))
                  (thead
                   (tr (th "Name")
-                      (th "Function")))
-                 (tbody ,@(hash-map props render-property))))
+                      (th "Function")
+                      (th)))
+                 (tbody ,@(hash-map props 
+                                    (λ (name fun)
+                                      (remove-prop fd-name 
+                                                   (to-str name) 
+                                                   (to-str fun)))))))
     ,(add-new-prop fd-name)))
-
-;; render-property : string any
-(define (render-property name fun)
-  `(tr (td ,(to-str name)) 
-       (td ,(to-str fun))))
 
 
 
 ;; RESULTS
 
 ;; render-results-panel : results -> xexpr
-(define (render-results-panel results)
+(define (render-results-panel)
   `(div ((class "panel panel-info"))
         (div ((class "panel-heading"))
              (h3 ((class "panel-title"))"Results"))
         (div ((class "panel-body"))
-             ,(render-results results)
+             ,(render-results (gen-worklist FUN-DEFNS))
              ,(test-prop))))
 
 ;; render-results : -> xexpr

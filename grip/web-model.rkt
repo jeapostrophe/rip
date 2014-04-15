@@ -4,9 +4,6 @@
          "model.rkt"
          "editor.rkt")
 
-
-
-
 ;; lambda->fun-defn : string (A -> B) -> fun-defn
 (define (lambda->fun-defn name lam)
   (fun-defn name lam empty empty (hasheq)))
@@ -51,12 +48,8 @@
                          (cons 'cube f2) 
                          (cons 'pow f3))))
 
-(define RESULTS 
-  (list (testcase-result (testcase (list 1 2) 3)
-                         (list (fun-call 'add (list 1 2) 3)
-                               (fun-call 'add (list 1 1) 2)
-                               (fun-call 'add (list 1 0) 1)))))
-
-(gen-worklist FUN-DEFNS)
+(struct output (results) #:mutable)
+(define QC-RESULTS 
+  (output empty))
 
 (provide (all-defined-out))
