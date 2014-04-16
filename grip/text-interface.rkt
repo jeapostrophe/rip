@@ -223,7 +223,8 @@
                   (testcase (list 123 0) 1)
                   (testcase (list 0 0) 1)
                   (testcase (list 0 1) 0))
-            (hasheq)))
+            (hasheq 'increasing
+                    (λ (b e) (< b e)))))
 
 (define (debugger fun-defns)
   (debugger (debugger-step fun-defns)))

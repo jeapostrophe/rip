@@ -290,14 +290,11 @@
          (label ((class "col-lg-2 control-label"))
                 "Number of times to test ") 
          ,{input-int . => . qc-count}))
-   (quick-check FUN-DEFNS 
-                (string->symbol fd-name) 
-                (string->symbol p-name) 
-                (hash-ref (fun-defn-properties 
-                           (hash-ref FUN-DEFNS
-                                     (string->symbol fd-name)))
-                          (string->symbol p-name)) 
-                qc-count)))
+   (set-output-results! QC-RESULTS
+                        (quick-check FUN-DEFNS 
+                                     (string->symbol fd-name) 
+                                     (string->symbol p-name) 
+                                     qc-count))))
 
 
 
@@ -505,9 +502,11 @@
 (define (to-racket value)
   (call-with-input-string value read))
 
-(serve/servlet
- grip-dispatch
- #:command-line? #t
- #:port 2991
- #:servlet-regexp #rx""
- #:extra-files-paths (list htdocs))
+(module+ main
+  (serve/servlet
+   grip-dispatch
+   #:command-line? #t
+   #:banner? #t
+   #:port 2991
+   #:servlet-regexp #rx""
+   #:extra-files-paths (list htdocs)))

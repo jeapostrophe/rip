@@ -17,6 +17,7 @@
 ;;(struct testcase (input output))
 (struct/ctc testcase ([input list?] 
                       [output any/c]))
+
 ;; testcase-result : testcase (list fun-call)
 ;;(struct testcase-result (tc trace))
 (struct/ctc testcase-result ([tc testcase?] 
@@ -31,6 +32,7 @@
                                 [property-name symbol?] 
                                 [tc testcase?]))
 ;; fun-call : symbol (list values) value
+;; the output field will be the output of the function or an execption object
 ;;(struct fun-call (fun-name input output))
 (struct/ctc fun-call ([fun-name symbol?] 
                       [input list?]

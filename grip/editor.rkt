@@ -102,28 +102,32 @@
 
 ;; quick-check : fun-defn string (A -> B) integer -> 
 ;;                              (list property-result?)
-(define (quick-check fun-defns fd-name p-name p-fun count)   
-  (printf "Running quick check...\n")
+(define (quick-check fun-defns fd-name p-name count)   
   (filter (λ (item) 
             (not (empty? item)))
           (for/list ([i (in-range count)])
             (quick-check-once fun-defns
                               fd-name
-                              p-name
-                              p-fun))))
+                              p-name))))
 
 ;; quick-check-once : fun-defn string (A -> B) -> 
 ;;                              (list property-result?)
-(define (quick-check-once fun-defns fd-name p-name p-fun)
+(define (quick-check-once fun-defns fd-name p-name)
   (define fd (hash-ref fun-defns fd-name))
-  (match-define (result success trace) 
-    (check-property fun-defns 
-                    fd 
-                    (fun-defn-generator fd) 
-                    p-fun))
-  (if success
-      empty
-      (property-result p-name trace)))
+  (define res
+    (with-handlers ([exn:fail? (λ (x) #f)])
+      (check-property fun-defns 
+                      fd 
+                      (fun-defn-generator fd) 
+                      (hash-ref (fun-defn-properties fd)
+                                p-name))))
+  (match res
+    [#f
+     empty]
+    [(result success trace)     
+     (if success
+         empty
+         (property-result p-name trace))]))
 
 ;; gen-worklist : (list fun-defn) -> (list testcase-result)
 (define (gen-worklist fun-defns)
@@ -173,5 +177,9 @@
 (define fun-defns (hasheq 'add fun1
                           'cube fun2
                           'pow fun3))
+
+(require rackunit)
+(check-equal? (quick-check-once fun-defns 'cube 'increasing)
+              empty)
 
 (provide (all-defined-out))
