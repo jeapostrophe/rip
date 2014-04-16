@@ -20,7 +20,9 @@
 (define-runtime-path htdocs "htdocs")
 
 ;; xxx To Do List
-;; - adding quick check
+;; - add tests
+;; - catch syntax errors
+;; - add variety to quick check options
 
 
 ;; FRAMEWORK
@@ -78,7 +80,8 @@
     (define-action (embed-id args ...)
       #:url url-pattern
       (λ (some-url)
-        `(div ((class "modal"))
+        `(div ((class "modal")
+               (id "modal-dialog"))
               (div ((class "modal-dialog"))
                    (div ((class "modal-content"))
                         (form ((action ,some-url))
@@ -89,17 +92,17 @@
                                             (aria-hidden "true"))
                                            "×")
                                    (h4 ((class "modal-title"))
-                                       "QuickCheck Results"))
+                                       title))
                               (div ((class "modal-body"))
                                    ,@(formlet-display (formlet-id args ...)))
                               (div ((class "modal-footer"))
                                    (button ((type "button")
                                             (data-dismiss "modal")
                                             (class "btn btn-default"))
-                                           "Close")
+                                           "Cancel")
                                    (button ((type "sumbit")
                                             (class "btn btn-primary"))
-                                           "Add new test cases")))))))
+                                           "Save")))))))
       (λ (req)
         (formlet-process (formlet-id args ...) req)))))
 
@@ -120,51 +123,7 @@
 
 ;; HANDLERS
 
-(define-modal-action (add-qc-results fd-name)
-  "QuickCheck Results"
-  #:url ("grip" "fun" (string-arg) "qc-results")
-  (formlet
-   (table ((class "table"))
-          (thead
-           (tr
-            (th "Function")
-            (th "Violated Property")
-            (th "Input")
-            (th "Output")))
-          (tbody 
-           ,@(map (λ (result)
-                    (match-define (property-result p-name trace) 
-                      result)
-                    (match-define (fun-call fd in out) 
-                      (first trace))
-                    `(tr ((class "danger"))
-                         (td ,(to-str fd))
-                         (td ,(to-str p-name))
-                         (td ,(to-str in))
-                         (td ,(to-str out)))) 
-                  (output-results QC-RESULTS))))
-   (hash-set! FUN-DEFNS 
-              (string->symbol fd-name)
-              (foldr (λ (result fd)
-                       (match-define (fun-call fd-call-name in out) 
-                         (first (property-result-trace result)))
-                       (add-test-case fd (testcase in out)))
-                     (hash-ref FUN-DEFNS 
-                               (string->symbol fd-name))
-                     (output-results QC-RESULTS)))))
-
 (define (grip req)
-  (define (qc-results) 
-    (define results (output-results QC-RESULTS))
-    (cond 
-      [(empty? results)
-       `(div)]
-      [else
-       (define fd-name 
-         (fun-call-fun-name (first (property-result-trace result))))
-       (add-qc-results fd-name)]))
-  
-  
   (response/xexpr
    `(html
      (head (title "GRIP")
@@ -188,6 +147,69 @@
                 ,(qc-results)
                 ,(render-fd-panel)
                 ,(render-results-panel)))))))
+
+(define-modal-action (add-qc-results fd-name)
+  "QuickCheck Results"
+  #:url ("grip" "fun" (string-arg) "qc-results")
+  (formlet
+   (#%#
+    (p "Click save if you would like to save all of these as test cases.")
+    (table ((class "table"))
+          (thead
+           (tr
+            (th "Function")
+            (th "Violated Property")
+            (th "Input")
+            (th "Output")))
+          (tbody 
+           ,@(map (λ (result)
+                    (match-define (property-result p-name trace) 
+                      result)
+                    (match-define (fun-call fd in out) 
+                      (first trace))
+                    `(tr ((class "danger"))
+                         (td ,(to-str fd))
+                         (td ,(to-str p-name))
+                         (td ,(to-str in))
+                         (td ,(to-str out)))) 
+                  (output-results QC-RESULTS)))))
+   (hash-set! FUN-DEFNS 
+              (string->symbol fd-name)
+              (foldr (λ (result fd)
+                       (match-define (fun-call fd-call-name in out) 
+                         (first (property-result-trace result)))
+                       (add-test-case fd (testcase in out)))
+                     (hash-ref FUN-DEFNS 
+                               (string->symbol fd-name))
+                     (output-results QC-RESULTS)))))
+
+(define-modal-action (get-generator fd-name p-name qc-count)
+  "Enter a generator function"
+  #:url ("grip" "fun" (string-arg) 
+                "prop" (string-arg) 
+                "qc-count" (string-arg))
+  (formlet
+   (#%#
+    (p ,(string-append "No generator function exists for "
+                       fd-name
+                       ". Please enter a function that takes zero arguments and"
+                       " returns a list of randomly generated parameters for "
+                       "your function."))
+    (div ((class "form-group"))
+        (label ((class "col-lg-2 control-label"))
+               "Function")
+        ,{input-string . => . gen-func}))
+   (begin
+     (hash-set! FUN-DEFNS 
+                (string->symbol fd-name)
+                (set-generator (hash-ref FUN-DEFNS
+                                         (string->symbol fd-name))
+                               (to-racket gen-func)))
+     (set-output-results! QC-RESULTS
+                          (quick-check FUN-DEFNS 
+                                       (string->symbol fd-name) 
+                                       (string->symbol p-name) 
+                                       (string->number qc-count))))))
 
 (define-formlet-action (add-new-fd)
   "Add a new function"
@@ -290,17 +312,50 @@
          (label ((class "col-lg-2 control-label"))
                 "Number of times to test ") 
          ,{input-int . => . qc-count}))
-   (set-output-results! QC-RESULTS
-                        (quick-check FUN-DEFNS 
-                                     (string->symbol fd-name) 
-                                     (string->symbol p-name) 
-                                     qc-count))))
+   (begin
+     (set-output-results! QC-RESULTS
+                          (if (empty? (fun-defn-generator 
+                                       (hash-ref FUN-DEFNS 
+                                                 (string->symbol fd-name))))
+                              (list fd-name p-name qc-count)
+                              (quick-check FUN-DEFNS 
+                                           (string->symbol fd-name) 
+                                           (string->symbol p-name) 
+                                           qc-count))))))
 
 
 
 ;; FUNCTION DEFINITIONS
 
-;; render-fd-panel : embed/url request -> xexpr
+;; qc-results : -> xexpr
+(define (qc-results) 
+    (define results (output-results QC-RESULTS))
+    (cond 
+      [(not results)
+       `(div)]
+      [(and (list? results)
+            (= 3 (length results))
+            (string? (first results))
+            (string? (second results))
+            (number? (third results)))
+       `(div ,(get-generator (first results) (second results) (to-str (third results)))
+             (script ((type "text/javascript")
+                      (src "/show-modal.js"))))]
+      [(empty? results)
+       `(div ((class "alert alert-dimissable alert-success"))
+               (button ((type "button")
+                        (class "close")
+                        (data-dismiss "alert"))
+                       "x")
+               "All quick check tests passed!")]
+      [else
+       (define fd-name 
+         (fun-call-fun-name (first (property-result-trace (first results)))))
+       `(div ,(add-qc-results fd-name)
+             (script ((type "text/javascript")
+                      (src "/show-modal.js"))))]))
+
+;; render-fd-panel : -> xexpr
 (define (render-fd-panel)
   `(div ((class "panel panel-primary"))
         (div ((class "panel-heading"))
@@ -364,7 +419,7 @@
                    (id ,(string-append fd-name "-properties")))
                   ,(render-properties props fd-name)))))
 
-;; render-testcases : (list testcase) -> xexpr
+;; render-testcases : (list testcase) string -> xexpr
 (define (render-testcases tcs fd-name) 
   `(div 
     ,(if (empty? tcs) 
@@ -386,7 +441,7 @@
   (match-define (testcase in out) tc)
   `(tr (td ,(to-str in)) (td ,(to-str out))))
 
-;; render-properties : hasheq
+;; render-properties : hasheq string -> xexpr
 (define (render-properties props fd-name) 
   `(div 
     ,(if (zero? (hash-count props)) 
@@ -412,7 +467,7 @@
 
 ;; RESULTS
 
-;; render-results-panel : results -> xexpr
+;; render-results-panel : -> xexpr
 (define (render-results-panel)
   `(div ((class "panel panel-info"))
         (div ((class "panel-heading"))

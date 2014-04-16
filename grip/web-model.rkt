@@ -50,6 +50,6 @@
 
 (struct output (results) #:mutable)
 (define QC-RESULTS 
-  (output empty))
+  (output #f))
 
 (provide (all-defined-out))
