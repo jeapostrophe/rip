@@ -5,34 +5,99 @@
          "model.rkt"
          "interp.rkt")
 
+(module+ test
+  (require rackunit)
+  (define fun1
+    (fun-defn 'add 
+              '(λ (x y) (+ x (+ x y)))
+              empty
+              (list (testcase (list 2 3) 5)
+                    (testcase (list 2 -8) -6)
+                    (testcase (list 0 1) 1))
+              (hasheq)))
+  
+  (define fun2 
+    (fun-defn 'cube 
+              '(λ (x) (* x x x))
+              empty
+              (list (testcase (list 2) 8)
+                    (testcase (list 3) 9)
+                    (testcase (list -3) -9)
+                    (testcase (list 0) 0))
+              (hasheq 'increasing 
+                      '(λ (x) (> (cube x) x))
+                      'super-increasing 
+                      '(λ (x) (> (cube x) (* x x))))))
+  
+  (define fun3
+    (fun-defn 'pow 
+              '(λ (base exp) 
+                 (if (zero? exp)
+                     1
+                     (* base (pow base (- exp 1)))))
+              empty
+              (list (testcase (list 2 3) 8)
+                    (testcase (list 3 2) 9)
+                    (testcase (list -3 3) -27)
+                    (testcase (list 123 0) 1)
+                    (testcase (list 0 0) 1)
+                    (testcase (list 0 1) 0))
+              (hasheq)))
+  
+  (define fun-defns (hasheq 'add fun1
+                            'cube fun2
+                            'pow fun3)))
+
 ;; set-generator : fun-defn ( -> list?) -> fun-defn
 (define (set-generator fd gen)
   (struct-copy fun-defn fd
                [generator
                 gen]))
+(module+ test
+  (define gen (λ () (random)))
+  (check-equal? gen (fun-defn-generator (set-generator fun2 gen))))
 
 ;; set-code : fun-defn (A -> B) -> fun-defn
 (define (set-code fd c)
   (struct-copy fun-defn fd
                [code
                 c]))
+(module+ test
+  (define code (λ (x) (random x)))
+  (check-equal? code (fun-defn-code (set-code fun2 code))))
 
 ;; add-test-case : fun-defn testcase -> fun-defn
 (define (add-test-case fd tc)
   (struct-copy fun-defn fd
                [test-cases
                 (cons tc (fun-defn-test-cases fd))]))
+(module+ test
+  (define contains? 
+    (λ (x) (and (list? x)
+                (not (empty? x)))))
+  (define tc (testcase (list 3 4) 7))
+  (check-false (member tc (fun-defn-test-cases fun1)))
+  (check-pred contains?
+              (member tc (fun-defn-test-cases (add-test-case fun1 tc)))))
 
 ;; rm-test-case : fun-defn testcase 
 (define (rm-test-case fd tc)
   (struct-copy fun-defn fd
                [test-cases 
                 (test-cases/expt fd tc)]))
-
+(module+ test
+  (define tc2 (testcase (list 2 3) 5))
+  (check-pred contains?
+              (member tc2 (fun-defn-test-cases fun1)))
+  (check-false (member tc2 (fun-defn-test-cases (rm-test-case fun1 tc2)))))
 
 ;; test-cases/expt : fun-defn testcase -> (list testcase?) 
-(define (test-cases/expt fd test-case)
-  (remove test-case (fun-defn-test-cases fd)))
+(define (test-cases/expt fd tc)
+  (remove tc (fun-defn-test-cases fd)))
+(module+ test
+  (check-pred contains?
+              (member tc2 (fun-defn-test-cases fun1)))
+  (check-false (member tc2 (test-cases/expt fun1 tc2))))
 
 ;; rm-property : fun-defn property -> fun-defn
 (define (rm-property fd name)
@@ -40,6 +105,12 @@
                [properties 
                 (hash-remove (fun-defn-properties fd)
                              name)]))
+(module+ test  
+  (check-true (hash-has-key? (fun-defn-properties fun2)
+              'increasing))
+  (check-false (hash-has-key? (fun-defn-properties 
+                              (rm-property fun2 'increasing))
+              'increasing)))
 
 ;; add-property : fun-defn name fun -> fun-defn
 (define (add-property fd name fun)
@@ -48,6 +119,12 @@
                 (hash-set (fun-defn-properties fd)
                           name 
                           fun)]))
+(module+ test
+  (check-false (hash-has-key? (fun-defn-properties fun2)
+              'decreasing))
+  (check-true (hash-has-key? (fun-defn-properties 
+                              (add-property fun2 'decreasing '(λ () #f)))
+              'decreasing)))
 
 ;; check-new-tc : fun-defn testcase -> (list result?)
 (define (check-new-tc fun-defns fd tc)
@@ -128,6 +205,9 @@
      (if success
          empty
          (property-result p-name trace))]))
+(module+ test
+  (check-equal? (quick-check-once fun-defns 'cube 'increasing)
+                empty))
 
 ;; gen-worklist : (list fun-defn) -> (list testcase-result)
 (define (gen-worklist fun-defns)
@@ -135,51 +215,5 @@
    (for/list ([fd (in-hash-values fun-defns)])
      (test-fun fun-defns (fun-defn-name fd)))))
 
-
-;; TESTS
-(define fun1
-  (fun-defn 'add 
-            '(λ (x y) (+ x (+ x y)))
-            empty
-            (list (testcase (list 2 3) 5)
-                  (testcase (list 2 -8) -6)
-                  (testcase (list 0 1) 1))
-            (hasheq)))
-
-(define fun2 
-  (fun-defn 'cube 
-            '(λ (x) (* x x x))
-            empty
-            (list (testcase (list 2) 8)
-                  (testcase (list 3) 9)
-                  (testcase (list -3) -9)
-                  (testcase (list 0) 0))
-            (hasheq 'increasing 
-                    '(λ (x) (> (cube x) x))
-                    'super-increasing 
-                    '(λ (x) (> (cube x) (* x x))))))
-
-(define fun3
-  (fun-defn 'pow 
-            '(λ (base exp) 
-               (if (zero? exp)
-                   1
-                   (* base (pow base (- exp 1)))))
-            empty
-            (list (testcase (list 2 3) 8)
-                  (testcase (list 3 2) 9)
-                  (testcase (list -3 3) -27)
-                  (testcase (list 123 0) 1)
-                  (testcase (list 0 0) 1)
-                  (testcase (list 0 1) 0))
-            (hasheq)))
-
-(define fun-defns (hasheq 'add fun1
-                          'cube fun2
-                          'pow fun3))
-
-(require rackunit)
-(check-equal? (quick-check-once fun-defns 'cube 'increasing)
-              empty)
 
 (provide (all-defined-out))

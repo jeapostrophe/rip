@@ -4,6 +4,7 @@
          racket/list
          racket/function
          "model.rkt")
+
 (module+ test
   (require rackunit)
   
@@ -277,9 +278,9 @@
     (check-equal? ((eval '(λ () (add 1 50)))) 52)
     (check-equal? (length (unbox rb3)) 6)))
 
-(provide 
- check-test-case
+(provide
  (contract-out
-  [check-property (-> (hash/c symbol? fun-defn?) fun-defn? 
-                      any/c any/c
+  [check-test-case (-> (hash/c symbol? fun-defn?) fun-defn? testcase? 
+                       result?)]
+  [check-property (-> (hash/c symbol? fun-defn?) fun-defn? any/c any/c
                       result?)]))

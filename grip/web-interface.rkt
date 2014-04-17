@@ -20,7 +20,6 @@
 ;; xxx To Do List
 ;; - add tests
 ;; - catch syntax errors
-;; - add variety to quick check options
 
 
 ;; FRAMEWORK
