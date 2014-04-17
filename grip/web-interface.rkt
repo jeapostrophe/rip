@@ -33,12 +33,12 @@
  [() grip]
  [("") grip])
 
-(define-syntax-rule 
+(define-syntax-rule
   (define-action (embed-id args ...)
     #:url url-pattern
     display-fun
     link-expr)
-  (begin 
+  (begin
     (dispatch-rules! grip-container [url-pattern action-id])
     (define (embed-id args ...)
       (display-fun (grip-url action-id args ...)))
@@ -46,7 +46,7 @@
       (link-expr req)
       (redirect-to (grip-url grip)))))
 
-(define-syntax-rule 
+(define-syntax-rule
   (define-formlet-action (embed-id args ...)
     title
     #:url url-pattern
@@ -68,7 +68,7 @@
       (λ (req)
         (formlet-process (formlet-id args ...) req)))))
 
-(define-syntax-rule 
+(define-syntax-rule
   (define-modal-action (embed-id args ...)
     title
     #:url url-pattern
@@ -109,11 +109,11 @@
   (define-link-action (embed-id args ...)
     #:url url-pattern
     link-text-expr
-    link-expr)  
+    link-expr)
   (define-action (embed-id args ...)
     #:url url-pattern
-    (λ (some-url) 
-      `(tr 
+    (λ (some-url)
+      `(tr
         link-text-expr
         (td (a ((class "close")
                 (href ,some-url)) "×"))))
@@ -135,7 +135,7 @@
                     (type "text/javascript")))
            (script ((src "/bootswatch.js")
                     (type "text/javascript"))))
-     (body 
+     (body
       (div ((class "container"))
            (div ((class "page-header"))
                 (div ((class "row"))
@@ -160,42 +160,42 @@
              (th "Violated Property")
              (th "Input")
              (th "Output")))
-           (tbody 
+           (tbody
             ,@(map (λ (result)
-                     (match-define (property-result p-name trace) 
-                       result)
-                     (match-define (fun-call fd in out) 
-                       (first trace))
+                     (match-define (property-result p-name trace)
+                                   result)
+                     (match-define (fun-call fd in out)
+                                   (first trace))
                      `(tr ((class "danger"))
                           (td ,(to-str fd))
                           (td ,(to-str p-name))
                           (td ,(to-str in))
-                          (td ,(to-str out)))) 
+                          (td ,(to-str out))))
                    (get-quick-check-results)))))
-   (set-fun-defn! 
-              (string->symbol fd-name)
-              (foldr (λ (result fd)
-                       (match-define (fun-call fd-call-name in out) 
-                         (first (property-result-trace result)))
-                       (add-test-case fd (testcase in out)))
-                     (get-fun-defn 
-                               (string->symbol fd-name))
-                     (get-quick-check-results)))))
+   (set-fun-defn!
+    (string->symbol fd-name)
+    (foldr (λ (result fd)
+             (match-define (fun-call fd-call-name in out)
+                           (first (property-result-trace result)))
+             (add-test-case fd (testcase in out)))
+           (get-fun-defn
+            (string->symbol fd-name))
+           (get-quick-check-results)))))
 
 (define-modal-action (get-generator fd-name p-name qc-count)
   "Enter a generator function"
-  #:url ("grip" "fun" (string-arg) 
-                "prop" (string-arg) 
-                "qc-count" (string-arg))
+  #:url ("grip" "fun" (string-arg)
+         "prop" (string-arg)
+         "qc-count" (string-arg))
   (formlet
    (#%#
     (p ,(string-append "No generator function exists for "
                        fd-name
                        "."))
-    ,{(radio-group 
+    ,{(radio-group
        (list "1. Enter an expression to specifiy parameters"
              "2. Enter a function to generate parameters")
-       #:display (λ (text)`(span 
+       #:display (λ (text)`(span
                             (label ((class "control-label"))
                                    ,text)
                             (br)))) . => . rg}
@@ -204,7 +204,7 @@
          (label ((class "col-lg-2 control-label"))
                 "Input:")
          ,{input-string . => . gen-func})
-    (p (small 
+    (p (small
         "1. Expressions are defined with the following syntax:" (br)
         "real/g -> real?" (br)
         "int/g -> integer?" (br)
@@ -215,23 +215,23 @@
         "(list/g . x) -> list?" (br)
         "(listof/g x) -> list?" (br)
         "Enter an expression that produces a list of parameters."))
-    (p (small 
+    (p (small
         "2. Enter a function that takes zero arguments and"
         " returns a list of randomly generated parameters for "
         "your function.")))
    (begin
-     (define fun 
+     (define fun
        (if (char=? (string-ref rg 0) #\1)
-           (expr-based-generator (to-racket gen-func))
-           (to-racket gen-func)))
-     (set-fun-defn! 
-                (string->symbol fd-name)
-                (set-generator (get-fun-defn
-                                         (string->symbol fd-name))
-                               fun))
-     (run-quick-check (string->symbol fd-name) 
-                                       (string->symbol p-name) 
-                                       (string->number qc-count)))))
+         (expr-based-generator (to-racket gen-func))
+         (to-racket gen-func)))
+     (set-fun-defn!
+      (string->symbol fd-name)
+      (set-generator (get-fun-defn
+                      (string->symbol fd-name))
+                     fun))
+     (run-quick-check (string->symbol fd-name)
+                      (string->symbol p-name)
+                      (string->number qc-count)))))
 
 (define-formlet-action (add-new-fd)
   "Add a new function"
@@ -242,108 +242,108 @@
                "Name")
         ,{input-string . => . name})
    (begin
-     (set-fun-defn! 
-                (string->symbol name)
-                (fun-defn (string->symbol name)
-                          '(λ () )
-                          empty
-                          empty
-                          (hasheq))))))
+     (set-fun-defn!
+      (string->symbol name)
+      (fun-defn (string->symbol name)
+                '(λ () )
+                empty
+                empty
+                (hasheq))))))
 
 (define-formlet-action (add-new-tc name)
   "Add a new test case"
   #:url ("grip" "fun" (string-arg) "new-testcase")
   (formlet
-   (#%# 
+   (#%#
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
-                "Input") 
+                "Input")
          ,{input-string . => . input})
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
                 "Output")
          ,{input-string . => . output}))
-   (set-fun-defn! 
-              (string->symbol name)
-              (add-test-case (get-fun-defn 
-                                       (string->symbol name))
-                             (testcase (to-racket input) 
-                                       (to-racket output))))))
+   (set-fun-defn!
+    (string->symbol name)
+    (add-test-case (get-fun-defn
+                    (string->symbol name))
+                   (testcase (to-racket input)
+                             (to-racket output))))))
 
 (define-formlet-action (add-new-prop name)
   "Add a new property"
   #:url ("grip" "fun" (string-arg) "new-property")
   (formlet
-   (#%# 
+   (#%#
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
-                "Name") 
+                "Name")
          ,{input-string . => . p-name})
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
                 "Function")
          ,{input-string . => . p-fun}))
-   (set-fun-defn! 
-              (string->symbol name)
-              (add-property (get-fun-defn 
-                                      (string->symbol name))
-                            (string->symbol p-name)
-                            (to-racket p-fun)))))
+   (set-fun-defn!
+    (string->symbol name)
+    (add-property (get-fun-defn
+                   (string->symbol name))
+                  (string->symbol p-name)
+                  (to-racket p-fun)))))
 
 (define-link-action (remove-prop fd-name p-name code)
   #:url ("grip" "fun" (string-arg) "p-name" (string-arg)
-                "p-fun" (string-arg))
-  (div 
+         "p-fun" (string-arg))
+  (div
    (td ,p-name)
-   (td ,code))   
+   (td ,code))
   (set-fun-defn!
-             (string->symbol fd-name)
-             (rm-property (get-fun-defn
-                                    (string->symbol fd-name)) 
-                          (string->symbol p-name))))
+   (string->symbol fd-name)
+   (rm-property (get-fun-defn
+                 (string->symbol fd-name))
+                (string->symbol p-name))))
 
 (define-formlet-action (edit-code name code)
   "Edit the code below"
   #:url ("grip" "fun" (string-arg) "code" (string-arg))
   (formlet
    (div ((class "form-group"))
-        ,{(to-string 
-           (required 
-            (text-input #:value 
+        ,{(to-string
+           (required
+            (text-input #:value
                         (string->bytes/utf-8 code)))) . => . new-code})
    (set-fun-defn!
-              (string->symbol name)
-              (set-code (get-fun-defn
-                                  (string->symbol name))
-                        (to-racket new-code)))))
+    (string->symbol name)
+    (set-code (get-fun-defn
+               (string->symbol name))
+              (to-racket new-code)))))
 
 (define-formlet-action (test-prop)
   "Run QuickCheck"
   #:url ("grip" "fun" "test-prop")
-  (formlet 
+  (formlet
    (#%#
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
-                "Function Name ") 
+                "Function Name ")
          ,{input-string . => . fd-name})
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
-                "Property Name ") 
+                "Property Name ")
          ,{input-string . => . p-name})
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
-                "Number of times to test ") 
+                "Number of times to test ")
          ,{input-int . => . qc-count}))
    (run-quick-check (string->symbol fd-name)
-                      (string->symbol p-name) 
-                                           qc-count)))
+                    (string->symbol p-name)
+                    qc-count)))
 
 
 
 ;; FUNCTION DEFINITIONS
 
 ;; qc-results : -> xexpr
-(define (qc-results) 
+(define (qc-results)
   (match (get-quick-check-results)
     [#f
      `(div)]
@@ -359,7 +359,7 @@
                    "x")
            "All quick check tests passed!")]
     [results
-     (define fd-name 
+     (define fd-name
        (fun-call-fun-name (first (property-result-trace (first results)))))
      `(div ,(add-qc-results fd-name)
            (script ((type "text/javascript")
@@ -370,18 +370,18 @@
   `(div ((class "panel panel-primary"))
         (div ((class "panel-heading"))
              (h3 ((class "panel-title"))
-                 "Program"))        
+                 "Program"))
         (div ((class "panel-body"))
              (ul ((class "nav nav-tabs")
-                  (style "margin-bottom: 15px;")) 
-                 ,@(map render-fd-tab 
+                  (style "margin-bottom: 15px;"))
+                 ,@(map render-fd-tab
                         (get-fun-defns))
                  (li (a ((href "#new-fd")
                          (data-toggle "tab"))
                         "+ Function")))
              (div ((class "tab-content"))
-                  ,@(map render-fd-content 
-                         (get-fun-defns))             
+                  ,@(map render-fd-content
+                         (get-fun-defns))
                   ,(render-new-fd-form)))))
 
 ;; render-new-fd-form : -> xexpr
@@ -430,20 +430,20 @@
                   ,(render-properties props fd-name)))))
 
 ;; render-testcases : (list testcase) string -> xexpr
-(define (render-testcases tcs fd-name) 
-  `(div 
-    ,(if (empty? tcs) 
-         `(div ((class "alert alert-dimissable alert-info"))
-               (button ((type "button")
-                        (class "close")
-                        (data-dismiss "alert"))
-                       "x")
-               "Currently, there are no test cases for this function.")
-         `(table ((class "table"))
-                 (thead
-                  (tr (th "Input")
-                      (th "Output")))
-                 (tbody ,@(map render-testcase tcs))))
+(define (render-testcases tcs fd-name)
+  `(div
+    ,(if (empty? tcs)
+       `(div ((class "alert alert-dimissable alert-info"))
+             (button ((type "button")
+                      (class "close")
+                      (data-dismiss "alert"))
+                     "x")
+             "Currently, there are no test cases for this function.")
+       `(table ((class "table"))
+               (thead
+                (tr (th "Input")
+                    (th "Output")))
+               (tbody ,@(map render-testcase tcs))))
     ,(add-new-tc fd-name)))
 
 ;; render-testcase : testcase
@@ -452,25 +452,25 @@
   `(tr (td ,(to-str in)) (td ,(to-str out))))
 
 ;; render-properties : hasheq string -> xexpr
-(define (render-properties props fd-name) 
-  `(div 
-    ,(if (zero? (hash-count props)) 
-         `(div ((class "alert alert-dimissable alert-info"))
-               (button ((type "button")
-                        (class "close")
-                        (data-dismiss "alert"))
-                       "x")
-               "Currently, there are no properties for this function.")
-         `(table ((class "table"))
-                 (thead
-                  (tr (th "Name")
-                      (th "Function")
-                      (th)))
-                 (tbody ,@(hash-map props 
-                                    (λ (name fun)
-                                      (remove-prop fd-name 
-                                                   (to-str name) 
-                                                   (to-str fun)))))))
+(define (render-properties props fd-name)
+  `(div
+    ,(if (zero? (hash-count props))
+       `(div ((class "alert alert-dimissable alert-info"))
+             (button ((type "button")
+                      (class "close")
+                      (data-dismiss "alert"))
+                     "x")
+             "Currently, there are no properties for this function.")
+       `(table ((class "table"))
+               (thead
+                (tr (th "Name")
+                    (th "Function")
+                    (th)))
+               (tbody ,@(hash-map props
+                                  (λ (name fun)
+                                    (remove-prop fd-name
+                                                 (to-str name)
+                                                 (to-str fun)))))))
     ,(add-new-prop fd-name)))
 
 
@@ -489,35 +489,35 @@
 ;; render-results : -> xexpr
 (define (render-results results)
   (if (empty? results)
-      `(div ((class "alert alert-dismissable alert-success"))
-            (button ((type "button")
-                     (class "close")
-                     (data-dismiss "alert"))
-                    "x")
-            "All checks passed successfully!")
-      `(table ((class "table table-striped"))
-              (thead (tr 
-                      (th "Function")
-                      (th "Input")
-                      (th "Actual Output")
-                      (th "Expected Output")))
-              ,@(map (λ (result) 
-                       (cond
-                         [(testcase-result? result)
-                          (render-tc-result result)]
-                         [(property-result? result)
-                          (render-prop-result result)]
-                         [(property-result/tc? result)
-                          (render-prop-result/tc result)]
-                         )) 
-                     results))))
+    `(div ((class "alert alert-dismissable alert-success"))
+          (button ((type "button")
+                   (class "close")
+                   (data-dismiss "alert"))
+                  "x")
+          "All checks passed successfully!")
+    `(table ((class "table table-striped"))
+            (thead (tr
+                    (th "Function")
+                    (th "Input")
+                    (th "Actual Output")
+                    (th "Expected Output")))
+            ,@(map (λ (result)
+                     (cond
+                       [(testcase-result? result)
+                        (render-tc-result result)]
+                       [(property-result? result)
+                        (render-prop-result result)]
+                       [(property-result/tc? result)
+                        (render-prop-result/tc result)]
+                       ))
+                   results))))
 
 ;; render-tc-result : testcase-result -> xexpr
 (define (render-tc-result result)
-  (match-define (testcase-result tc trace) 
-    result)
-  (match-define (fun-call fd in out) 
-    (first trace))
+  (match-define (testcase-result tc trace)
+                result)
+  (match-define (fun-call fd in out)
+                (first trace))
   `(tbody (tr ((class "danger"))
               (td ,(to-str fd))
               (td ,(to-str in))
@@ -527,10 +527,10 @@
 
 ;; render-prop-result : property-result -> xexpr
 (define (render-prop-result result)
-  (match-define (property-result p-name trace) 
-    result)
-  (match-define (fun-call fd in out) 
-    (first trace))
+  (match-define (property-result p-name trace)
+                result)
+  (match-define (fun-call fd in out)
+                (first trace))
   `(tbody (tr ((class "danger"))
               (td ,(string-append (to-str fd) ": "
                                   (to-str p-name)))
@@ -541,8 +541,8 @@
 
 ;; render-prop-result/tc : property-result/tc -> xexpr
 (define (render-prop-result/tc result)
-  (match-define (property-result/tc fd-name p-name tc) 
-    result)
+  (match-define (property-result/tc fd-name p-name tc)
+                result)
   (match-define (testcase in out) tc)
   `(tr ((class "danger"))
        (td ,(string-append (to-str fd-name) ":"
