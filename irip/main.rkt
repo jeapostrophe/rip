@@ -152,6 +152,7 @@
     [(e:lam args body)
      (ok (v:clo args body env))]
     [(e:app fun args)
+     ;; xxx change this to try to replace everything
      (interp
       abstract-env
       fun env
@@ -275,6 +276,7 @@
 
 (require racket/pretty)
 
+;; xxx change this to use the abstract-env
 (define unparse
   (match-lambda
    [(e:app fun args)
@@ -333,6 +335,7 @@
          [(list-rest command new-script)
           (define new-history
             (match command
+              ;; xxx add more "tactics"
               [`(undo)
                (rest history)]
               [`(set! ,abstract-id ,se)
@@ -342,6 +345,8 @@
           (loop new-history new-script)]
          [(list)
           (error 'interactive "Script ended before success")])))))
+
+;; xxx actualy make interactive
 
 (module+ test
   (interactive
@@ -354,6 +359,16 @@
              (check (sum '(2)) '2)
              (check (sum '(1 2)) '3)
              '#t))
+   `[(set! sum-definition '10)
+     (undo)
+     (set! sum-definition (if (cons? l) (_ sum-cons) (_ sum-null)))
+     (set! sum-cons '10)
+     (undo)
+     (set! sum-cons (+ (_ sum-cons-lhs) (_ sum-cons-rhs)))
+     (set! sum-cons-lhs (sum (cdr l)))
+     (set! sum-cons-rhs (car l))
+     ]
+   #;
    `[(set! sum-definition '10)
      (undo)
      (set! sum-definition (if (cons? l) (_ sum-cons) (_ sum-null)))
