@@ -2,7 +2,7 @@
 (require racket/contract)
 
 (define-syntax-rule (struct/ctc name ([field ctc] ...))
-  (begin (struct name (field ...) #:transparent)
+  (begin (struct name (field ...) #:prefab)
          (provide (contract-out (struct name ((field ctc) ...))))))
 
 ;; fun-defn : symbol (A -> B) (list symbol) 

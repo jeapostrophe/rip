@@ -1,6 +1,7 @@
 #lang racket/base
-
 (require racket/list
+         racket/runtime-path
+         "file.rkt"
          "model.rkt"
          "editor.rkt")
 
@@ -43,10 +44,9 @@
                   (testcase (list 0 1) 0))
             (hasheq)))
 
-(define FUN-DEFNS (make-hash 
-                   (list (cons 'add f1) 
-                         (cons 'cube f2) 
-                         (cons 'pow f3))))
+(define FUN-DEFNS (make-hash))
+(define-runtime-path example.rkt "example.rkt")
+(read-from-file! FUN-DEFNS example.rkt)
 
 (struct output (results) #:mutable)
 (define QC-RESULTS 

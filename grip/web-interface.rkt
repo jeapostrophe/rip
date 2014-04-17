@@ -29,7 +29,9 @@
 
 (dispatch-rules!
  grip-container
- [("grip") grip])
+ [("grip") grip]
+ [() grip]
+ [("") grip])
 
 (define-syntax-rule 
   (define-action (embed-id args ...)
