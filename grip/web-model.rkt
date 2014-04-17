@@ -1,55 +1,54 @@
 #lang racket/base
 (require racket/list
+         racket/contract/base
          racket/runtime-path
          "file.rkt"
          "model.rkt"
          "editor.rkt")
 
-;; lambda->fun-defn : string (A -> B) -> fun-defn
-(define (lambda->fun-defn name lam)
-  (fun-defn name lam empty empty (hasheq)))
-
-(define f1
-  (fun-defn 'add 
-            '(λ (x y) (+ x y))
-            empty
-            (list (testcase (list 2 3) 5)
-                  (testcase (list 2 -8) -6)
-                  (testcase (list 0 1) 1))
-            (hasheq 'increasing
-                    '(λ (x y) (< x (add x y))))))
-
-(define f2 
-  (fun-defn 'cube 
-            '(λ (x) (* x x x))
-            empty
-            (list (testcase (list 2) 8)
-                  (testcase (list 3) 9)
-                  (testcase (list -3) -9)
-                  (testcase (list 0) 0))
-            (hasheq)))
-
-(define f3
-  (fun-defn 'pow 
-            '(λ (base exp) 
-               (if (zero? exp)
-                   1
-                   (add base (pow base (- exp 1)))))
-            empty
-            (list (testcase (list 2 3) 8)
-                  (testcase (list 3 2) 9)
-                  (testcase (list -3 3) -27)
-                  (testcase (list 123 0) 1)
-                  (testcase (list 0 0) 1)
-                  (testcase (list 0 1) 0))
-            (hasheq)))
-
 (define FUN-DEFNS (make-hash))
 (define-runtime-path example.rkt "example.rkt")
 (read-from-file! FUN-DEFNS example.rkt)
 
-(struct output (results) #:mutable)
-(define QC-RESULTS 
-  (output #f))
+(define (get-fun-defns)
+  (hash-values FUN-DEFNS))
+(define (get-fun-defn name)
+  (hash-ref FUN-DEFNS name))
+(define (set-fun-defn! name new-fd)
+  (hash-set! FUN-DEFNS name new-fd))
+(define (get-worklist)
+  (gen-worklist FUN-DEFNS))
 
-(provide (all-defined-out))
+(define QC-RESULTS
+  (box #f))
+(define (get-quick-check-results)
+  (unbox QC-RESULTS))
+(define (run-quick-check f p k)
+  (set-box! QC-RESULTS
+            (if (empty? (fun-defn-generator
+                         (get-fun-defn
+                          f)))
+              (vector (symbol->string f)
+                      (symbol->string p)
+                      k)
+              (quick-check FUN-DEFNS
+                           f p k))))
+
+(provide
+ (contract-out
+  [get-worklist
+   (-> (listof testcase-result?))]
+  [get-fun-defns
+   (-> (listof fun-defn?))]
+  [get-fun-defn
+   (-> symbol? fun-defn?)]
+  [set-fun-defn!
+   (-> symbol? fun-defn?
+       void?)]
+  [run-quick-check
+   (-> symbol? symbol? number?
+       void?)]
+  [get-quick-check-results
+   (-> (or/c false/c
+             (vector/c string? string? number?)
+             (listof property-result?)))]))

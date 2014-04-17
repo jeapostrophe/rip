@@ -171,16 +171,16 @@
                           (td ,(to-str p-name))
                           (td ,(to-str in))
                           (td ,(to-str out)))) 
-                   (output-results QC-RESULTS)))))
-   (hash-set! FUN-DEFNS 
+                   (get-quick-check-results)))))
+   (set-fun-defn! 
               (string->symbol fd-name)
               (foldr (λ (result fd)
                        (match-define (fun-call fd-call-name in out) 
                          (first (property-result-trace result)))
                        (add-test-case fd (testcase in out)))
-                     (hash-ref FUN-DEFNS 
+                     (get-fun-defn 
                                (string->symbol fd-name))
-                     (output-results QC-RESULTS)))))
+                     (get-quick-check-results)))))
 
 (define-modal-action (get-generator fd-name p-name qc-count)
   "Enter a generator function"
@@ -224,16 +224,14 @@
        (if (char=? (string-ref rg 0) #\1)
            (expr-based-generator (to-racket gen-func))
            (to-racket gen-func)))
-     (hash-set! FUN-DEFNS 
+     (set-fun-defn! 
                 (string->symbol fd-name)
-                (set-generator (hash-ref FUN-DEFNS
+                (set-generator (get-fun-defn
                                          (string->symbol fd-name))
                                fun))
-     (set-output-results! QC-RESULTS
-                          (quick-check FUN-DEFNS 
-                                       (string->symbol fd-name) 
+     (run-quick-check (string->symbol fd-name) 
                                        (string->symbol p-name) 
-                                       (string->number qc-count))))))
+                                       (string->number qc-count)))))
 
 (define-formlet-action (add-new-fd)
   "Add a new function"
@@ -244,7 +242,7 @@
                "Name")
         ,{input-string . => . name})
    (begin
-     (hash-set! FUN-DEFNS 
+     (set-fun-defn! 
                 (string->symbol name)
                 (fun-defn (string->symbol name)
                           '(λ () )
@@ -265,9 +263,9 @@
          (label ((class "col-lg-2 control-label"))
                 "Output")
          ,{input-string . => . output}))
-   (hash-set! FUN-DEFNS 
+   (set-fun-defn! 
               (string->symbol name)
-              (add-test-case (hash-ref FUN-DEFNS 
+              (add-test-case (get-fun-defn 
                                        (string->symbol name))
                              (testcase (to-racket input) 
                                        (to-racket output))))))
@@ -285,9 +283,9 @@
          (label ((class "col-lg-2 control-label"))
                 "Function")
          ,{input-string . => . p-fun}))
-   (hash-set! FUN-DEFNS 
+   (set-fun-defn! 
               (string->symbol name)
-              (add-property (hash-ref FUN-DEFNS 
+              (add-property (get-fun-defn 
                                       (string->symbol name))
                             (string->symbol p-name)
                             (to-racket p-fun)))))
@@ -298,9 +296,9 @@
   (div 
    (td ,p-name)
    (td ,code))   
-  (hash-set! FUN-DEFNS
+  (set-fun-defn!
              (string->symbol fd-name)
-             (rm-property (hash-ref FUN-DEFNS
+             (rm-property (get-fun-defn
                                     (string->symbol fd-name)) 
                           (string->symbol p-name))))
 
@@ -313,9 +311,9 @@
            (required 
             (text-input #:value 
                         (string->bytes/utf-8 code)))) . => . new-code})
-   (hash-set! FUN-DEFNS
+   (set-fun-defn!
               (string->symbol name)
-              (set-code (hash-ref FUN-DEFNS
+              (set-code (get-fun-defn
                                   (string->symbol name))
                         (to-racket new-code)))))
 
@@ -336,16 +334,9 @@
          (label ((class "col-lg-2 control-label"))
                 "Number of times to test ") 
          ,{input-int . => . qc-count}))
-   (begin
-     (set-output-results! QC-RESULTS
-                          (if (empty? (fun-defn-generator 
-                                       (hash-ref FUN-DEFNS 
-                                                 (string->symbol fd-name))))
-                              (list fd-name p-name qc-count)
-                              (quick-check FUN-DEFNS 
-                                           (string->symbol fd-name) 
-                                           (string->symbol p-name) 
-                                           qc-count))))))
+   (run-quick-check (string->symbol fd-name)
+                      (string->symbol p-name) 
+                                           qc-count)))
 
 
 
@@ -353,26 +344,21 @@
 
 ;; qc-results : -> xexpr
 (define (qc-results) 
-  (define results (output-results QC-RESULTS))
-  (cond 
-    [(not results)
+  (match (get-quick-check-results)
+    [#f
      `(div)]
-    [(and (list? results)
-          (= 3 (length results))
-          (string? (first results))
-          (string? (second results))
-          (number? (third results)))
-     `(div ,(get-generator (first results) (second results) (to-str (third results)))
+    [(vector f p k)
+     `(div ,(get-generator f p (to-str k))
            (script ((type "text/javascript")
                     (src "/show-modal.js"))))]
-    [(empty? results)
+    [(list)
      `(div ((class "alert alert-dimissable alert-success"))
            (button ((type "button")
                     (class "close")
                     (data-dismiss "alert"))
                    "x")
            "All quick check tests passed!")]
-    [else
+    [results
      (define fd-name 
        (fun-call-fun-name (first (property-result-trace (first results)))))
      `(div ,(add-qc-results fd-name)
@@ -389,13 +375,13 @@
              (ul ((class "nav nav-tabs")
                   (style "margin-bottom: 15px;")) 
                  ,@(map render-fd-tab 
-                        (hash-values FUN-DEFNS))
+                        (get-fun-defns))
                  (li (a ((href "#new-fd")
                          (data-toggle "tab"))
                         "+ Function")))
              (div ((class "tab-content"))
                   ,@(map render-fd-content 
-                         (hash-values FUN-DEFNS))             
+                         (get-fun-defns))             
                   ,(render-new-fd-form)))))
 
 ;; render-new-fd-form : -> xexpr
@@ -497,7 +483,7 @@
         (div ((class "panel-heading"))
              (h3 ((class "panel-title"))"Results"))
         (div ((class "panel-body"))
-             ,(render-results (gen-worklist FUN-DEFNS))
+             ,(render-results (get-worklist))
              ,(test-prop))))
 
 ;; render-results : -> xexpr
