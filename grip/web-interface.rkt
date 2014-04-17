@@ -12,9 +12,7 @@
          racket/port
          "model.rkt"
          "editor.rkt"
-         "interp.rkt"
          "expr-based-qc.rkt"
-         "custom-qc.rkt"
          "web-model.rkt")
 
 (define-runtime-path htdocs "htdocs")
@@ -155,24 +153,24 @@
    (#%#
     (p "Click save if you would like to save all of these as test cases.")
     (table ((class "table"))
-          (thead
-           (tr
-            (th "Function")
-            (th "Violated Property")
-            (th "Input")
-            (th "Output")))
-          (tbody 
-           ,@(map (λ (result)
-                    (match-define (property-result p-name trace) 
-                      result)
-                    (match-define (fun-call fd in out) 
-                      (first trace))
-                    `(tr ((class "danger"))
-                         (td ,(to-str fd))
-                         (td ,(to-str p-name))
-                         (td ,(to-str in))
-                         (td ,(to-str out)))) 
-                  (output-results QC-RESULTS)))))
+           (thead
+            (tr
+             (th "Function")
+             (th "Violated Property")
+             (th "Input")
+             (th "Output")))
+           (tbody 
+            ,@(map (λ (result)
+                     (match-define (property-result p-name trace) 
+                       result)
+                     (match-define (fun-call fd in out) 
+                       (first trace))
+                     `(tr ((class "danger"))
+                          (td ,(to-str fd))
+                          (td ,(to-str p-name))
+                          (td ,(to-str in))
+                          (td ,(to-str out)))) 
+                   (output-results QC-RESULTS)))))
    (hash-set! FUN-DEFNS 
               (string->symbol fd-name)
               (foldr (λ (result fd)
@@ -192,19 +190,44 @@
    (#%#
     (p ,(string-append "No generator function exists for "
                        fd-name
-                       ". Please enter a function that takes zero arguments and"
-                       " returns a list of randomly generated parameters for "
-                       "your function."))
+                       "."))
+    ,{(radio-group 
+       (list "1. Enter an expression to specifiy parameters"
+             "2. Enter a function to generate parameters")
+       #:display (λ (text)`(span 
+                            (label ((class "control-label"))
+                                   ,text)
+                            (br)))) . => . rg}
+    (br)
     (div ((class "form-group"))
-        (label ((class "col-lg-2 control-label"))
-               "Function")
-        ,{input-string . => . gen-func}))
+         (label ((class "col-lg-2 control-label"))
+                "Input:")
+         ,{input-string . => . gen-func})
+    (p (small 
+        "1. Expressions are defined with the following syntax:" (br)
+        "real/g -> real?" (br)
+        "int/g -> integer?" (br)
+        "(between/g x y) -> real?" (br)
+        "bool/g -> boolean?" (br)
+        "string/g -> string?" (br)
+        "symbol/g -> symbol?" (br)
+        "(list/g . x) -> list?" (br)
+        "(listof/g x) -> list?" (br)
+        "Enter an expression that produces a list of parameters."))
+    (p (small 
+        "2. Enter a function that takes zero arguments and"
+        " returns a list of randomly generated parameters for "
+        "your function.")))
    (begin
+     (define fun 
+       (if (char=? (string-ref rg 0) #\1)
+           (expr-based-generator (to-racket gen-func))
+           (to-racket gen-func)))
      (hash-set! FUN-DEFNS 
                 (string->symbol fd-name)
                 (set-generator (hash-ref FUN-DEFNS
                                          (string->symbol fd-name))
-                               (to-racket gen-func)))
+                               fun))
      (set-output-results! QC-RESULTS
                           (quick-check FUN-DEFNS 
                                        (string->symbol fd-name) 
@@ -329,31 +352,31 @@
 
 ;; qc-results : -> xexpr
 (define (qc-results) 
-    (define results (output-results QC-RESULTS))
-    (cond 
-      [(not results)
-       `(div)]
-      [(and (list? results)
-            (= 3 (length results))
-            (string? (first results))
-            (string? (second results))
-            (number? (third results)))
-       `(div ,(get-generator (first results) (second results) (to-str (third results)))
-             (script ((type "text/javascript")
-                      (src "/show-modal.js"))))]
-      [(empty? results)
-       `(div ((class "alert alert-dimissable alert-success"))
-               (button ((type "button")
-                        (class "close")
-                        (data-dismiss "alert"))
-                       "x")
-               "All quick check tests passed!")]
-      [else
-       (define fd-name 
-         (fun-call-fun-name (first (property-result-trace (first results)))))
-       `(div ,(add-qc-results fd-name)
-             (script ((type "text/javascript")
-                      (src "/show-modal.js"))))]))
+  (define results (output-results QC-RESULTS))
+  (cond 
+    [(not results)
+     `(div)]
+    [(and (list? results)
+          (= 3 (length results))
+          (string? (first results))
+          (string? (second results))
+          (number? (third results)))
+     `(div ,(get-generator (first results) (second results) (to-str (third results)))
+           (script ((type "text/javascript")
+                    (src "/show-modal.js"))))]
+    [(empty? results)
+     `(div ((class "alert alert-dimissable alert-success"))
+           (button ((type "button")
+                    (class "close")
+                    (data-dismiss "alert"))
+                   "x")
+           "All quick check tests passed!")]
+    [else
+     (define fd-name 
+       (fun-call-fun-name (first (property-result-trace (first results)))))
+     `(div ,(add-qc-results fd-name)
+           (script ((type "text/javascript")
+                    (src "/show-modal.js"))))]))
 
 ;; render-fd-panel : -> xexpr
 (define (render-fd-panel)

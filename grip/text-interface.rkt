@@ -88,8 +88,18 @@
       (interact
        ["Enter information about parameters"
         (custom-generator)]
-       ["Enter an expression to specifiy parameters"
-        (expr-based-generator)]
+       ["Enter an expression to specifiy parameters"        
+        (printf "Patterns are defined with the following syntax:")
+        (printf "\nreal/g -> real?")
+        (printf "\nint/g -> integer?")
+        (printf "\n(between/g x y) -> real?")
+        (printf "\nbool/g -> boolean?")
+        (printf "\nstring/g -> string?")
+        (printf "\nsymbol/g -> symbol?")
+        (printf "\n(list/g . x) -> list?")
+        (printf "\n(listof/g x) -> list?")
+        (printf "\nPlease enter a pattern that produces a list of parameters: ")
+        (expr-based-generator (read))]
        ["Enter a generator function"
         (printf "Write a function that takes zero aruguments and returns a list of parameters")
         (read)]))]
