@@ -6,8 +6,11 @@
          "model.rkt"
          "editor.rkt")
 
-(define FUN-DEFNS (make-hash))
+;; xxx remove globals and make this whole file an object/struct and
+;; allow selecting other
 (define-runtime-path example.rkt "example.rkt")
+
+(define FUN-DEFNS (make-hash))
 (read-from-file! FUN-DEFNS example.rkt)
 
 (define (get-fun-defns)
@@ -15,7 +18,8 @@
 (define (get-fun-defn name)
   (hash-ref FUN-DEFNS name))
 (define (set-fun-defn! name new-fd)
-  (hash-set! FUN-DEFNS name new-fd))
+  (hash-set! FUN-DEFNS name new-fd)
+  (write-to-file! FUN-DEFNS example.rkt))
 (define (get-worklist)
   (gen-worklist FUN-DEFNS))
 
