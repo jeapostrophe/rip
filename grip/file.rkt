@@ -12,8 +12,7 @@
     (dynamic-rerequire `(submod ,p read)))
   (define ip (open-input-bytes (get-output-bytes the-bs)))
   (for ([we (in-port read ip)])
-    (define e (second we))
-    (hash-set! target (fun-defn-name e) e)))
+    (hash-set! target (fun-defn-name we) we)))
 (provide
  (contract-out
   [read-from-file!
