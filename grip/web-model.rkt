@@ -41,7 +41,8 @@
 (provide
  (contract-out
   [get-worklist
-   (-> (listof testcase-result?))]
+   (-> (listof (or/c property-result?
+                     testcase-result?)))]
   [get-fun-defns
    (-> (listof fun-defn?))]
   [get-fun-defn

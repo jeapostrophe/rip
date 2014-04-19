@@ -15,12 +15,15 @@
               (list (testcase (list 2 3) 5)
                     (testcase (list 2 -8) -6)
                     (testcase (list 0 1) 1))
-              (hasheq)))
+              (hasheq 'increasing
+                      '(λ (r) 
+                         (< r (cube r))))))
   
   (define f2 
     (fun-defn 'cube 
               '(λ (x) (* x x x))
-              empty
+              '(λ () 
+                 (list (- (* -1 (random 5039)) 1)))
               (list (testcase (list 2) 8)
                     (testcase (list 3) 9)
                     (testcase (list -3) -9)
@@ -51,7 +54,9 @@
                  (/ f 0))
               empty
               (list (testcase (list 3) 0))
-              (hasheq)))
+              (hasheq 'increasing
+                      '(λ (r) 
+                         (< r (broken r))))))
   
   (define fun-defns (hasheq 'add f1
                             'cube f2
@@ -119,12 +124,13 @@
 ;; check-property : (list fun-defn) fun-defn ( -> list) ( -> bool) -> result
 ;; This function runs the specified property with the provided input and
 ;; produces a stack trace of all function calls with their input/output.
-(define (check-property fun-defns fd generator-fun p-fun)
+(define (check-property fun-defns fd generator-fun p-name)
   (record-result 
    (thunk
     (add-assumed-fds-to-ns! (remove fd 
                                     (hash-values fun-defns)))
     (define input ((eval generator-fun)))
+    (define p-fun (hash-ref (fun-defn-properties fd) p-name))
     (add-test-fd-to-ns! fd input)
     (with-handlers ([exn:fail? (λ (x) #f)])
       (apply (eval p-fun) input)))))
@@ -134,23 +140,25 @@
                                 f4 
                                 '(λ () 
                                    (list (random))) 
-                                '(λ (r) 
-                                   (< r (broken r))))))
+                                'increasing)))
   (for ([i (in-range 50)])
     (check-false (result-success 
                   (check-property fun-defns 
                                   f1 
                                   '(λ () 
                                      (list (random))) 
-                                  '(λ (r) 
-                                     (< r (cube r))))))
+                                  'increasing)))
+    (check-false (result-success 
+                  (check-property fun-defns 
+                                  f2 
+                                  (fun-defn-generator f2) 
+                                  'increasing)))
     (check-true (result-success 
                  (check-property fun-defns 
                                  f1 
                                  '(λ () 
                                     (list (+ 45 (random 45)))) 
-                                 '(λ (r) 
-                                    (< r (cube r))))))))
+                                 'increasing)))))
 
 ;; record-result : (A -> B) list -> result
 (define (record-result fun)

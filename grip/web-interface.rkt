@@ -7,18 +7,18 @@
          web-server/servlet-env
          racket/list
          racket/match
-         rackunit
          racket/runtime-path
          racket/port
          "model.rkt"
          "editor.rkt"
          "expr-based-qc.rkt"
          "web-model.rkt")
+(module+ test
+  (require rackunit))
 
 (define-runtime-path htdocs "htdocs")
 
 ;; xxx To Do List
-;; - add tests
 ;; - catch syntax errors
 
 
@@ -563,9 +563,27 @@
 ;; to-str : any -> string
 (define (to-str value)
   (format "~a" value))
+(module+ test
+  (check-pred string? (to-str 'game))
+  (check-pred string? (to-str "joy"))
+  (check-pred string? (to-str 45))
+  (check-pred string? (to-str '(λ () (random)))))
 
+;; to-racket : any/c -> racket
 (define (to-racket value)
   (call-with-input-string value read))
+(module+ test
+  (check-pred number? (to-racket "42"))
+  (check-pred symbol? (to-racket "joy"))
+  (check-pred string? (to-racket "\"joy\""))
+  (check-pred (λ (l)
+                (and (list? l)
+                     (= 3 (length l))
+                     (= 3 (first l))
+                     (equal? "match" (second l))
+                     (equal? 'joy (third l)))) 
+              (to-racket "(3 \"\"match\"\" \"joy\")"))
+  (check-pred procedure? (to-racket "(λ () (random))")))
 
 (module+ main
   (serve/servlet
