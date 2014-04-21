@@ -17,9 +17,14 @@
   (hash-values FUN-DEFNS))
 (define (get-fun-defn name)
   (hash-ref FUN-DEFNS name))
+(define (has-fun-defn? name)
+  (hash-has-key? FUN-DEFNS name))
 (define (set-fun-defn! name new-fd)
   (hash-set! FUN-DEFNS name new-fd)
   (write-to-file! FUN-DEFNS example.rkt))
+(define (has-prop? fd-name p-name)
+  (hash-has-key? (fun-defn-properties (get-fun-defn fd-name))
+                 p-name))
 (define (get-worklist)
   (gen-worklist FUN-DEFNS))
 
@@ -38,6 +43,16 @@
               (quick-check FUN-DEFNS
                            f p k))))
 
+(define ERROR
+  (box empty))
+(define (get-errors)
+  (unbox ERROR))
+(define (add-error! msg)
+  (set-box! ERROR 
+            (cons msg (unbox ERROR))))
+(define (clear-errors)
+  (set-box! ERROR empty))
+
 (provide
  (contract-out
   [get-worklist
@@ -45,6 +60,10 @@
                      testcase-result?)))]
   [get-fun-defns
    (-> (listof fun-defn?))]
+  [has-prop?
+   (-> symbol? symbol? boolean?)]
+  [has-fun-defn?
+   (-> symbol? boolean?)]
   [get-fun-defn
    (-> symbol? fun-defn?)]
   [set-fun-defn!
@@ -56,4 +75,9 @@
   [get-quick-check-results
    (-> (or/c false/c
              (vector/c string? string? number?)
-             (listof property-result?)))]))
+             (listof property-result?)))]
+  [get-errors
+   (-> list?)]
+  [add-error!
+   (-> string? void?)]
+  [clear-errors (-> void?)]))

@@ -143,6 +143,7 @@
                      (p ((class "lead"))
                         "A test driven approach to programming")))
            (div ((class "row"))
+                ,(render-errors)
                 ,(qc-results)
                 ,(render-fd-panel)
                 ,(render-results-panel)))))))
@@ -163,9 +164,9 @@
            (tbody
             ,@(map (λ (result)
                      (match-define (property-result p-name trace)
-                                   result)
+                       result)
                      (match-define (fun-call fd in out)
-                                   (first trace))
+                       (first trace))
                      `(tr ((class "danger"))
                           (td ,(to-str fd))
                           (td ,(to-str p-name))
@@ -176,7 +177,7 @@
     (string->symbol fd-name)
     (foldr (λ (result fd)
              (match-define (fun-call fd-call-name in out)
-                           (first (property-result-trace result)))
+               (first (property-result-trace result)))
              (add-test-case fd (testcase in out)))
            (get-fun-defn
             (string->symbol fd-name))
@@ -185,8 +186,8 @@
 (define-modal-action (get-generator fd-name p-name qc-count)
   "Enter a generator function"
   #:url ("grip" "fun" (string-arg)
-         "prop" (string-arg)
-         "qc-count" (string-arg))
+                "prop" (string-arg)
+                "qc-count" (string-arg))
   (formlet
    (#%#
     (p ,(string-append "No generator function exists for "
@@ -220,16 +221,17 @@
         " returns a list of randomly generated parameters for "
         "your function.")))
    (begin
+     (define fd-name-sym (string->symbol fd-name))
      (define fun
        (if (char=? (string-ref rg 0) #\1)
-         (expr-based-generator (to-racket gen-func))
-         (to-racket gen-func)))
+           (expr-based-generator (to-racket gen-func))
+           (to-racket gen-func)))
      (set-fun-defn!
-      (string->symbol fd-name)
+      fd-name-sym
       (set-generator (get-fun-defn
-                      (string->symbol fd-name))
+                      fd-name-sym)
                      fun))
-     (run-quick-check (string->symbol fd-name)
+     (run-quick-check fd-name-sym
                       (string->symbol p-name)
                       (string->number qc-count)))))
 
@@ -241,14 +243,16 @@
         (label ((class "col-lg-2 control-label"))
                "Name")
         ,{input-string . => . name})
-   (begin
-     (set-fun-defn!
-      (string->symbol name)
-      (fun-defn (string->symbol name)
-                '(λ () )
-                empty
-                empty
-                (hasheq))))))
+   (if (has-fun-defn? (string->symbol name))
+       (add-error! (string-append "A function already exists with the name"
+                                  name))
+       (set-fun-defn!
+        (string->symbol name)
+        (fun-defn (string->symbol name)
+                  '(λ () )
+                  empty
+                  empty
+                  (hasheq))))))
 
 (define-formlet-action (add-new-tc name)
   "Add a new test case"
@@ -263,12 +267,28 @@
          (label ((class "col-lg-2 control-label"))
                 "Output")
          ,{input-string . => . output}))
-   (set-fun-defn!
-    (string->symbol name)
-    (add-test-case (get-fun-defn
-                    (string->symbol name))
-                   (testcase (to-racket input)
-                             (to-racket output))))))
+   (begin
+     (define tc (check-tc-input input output))
+     (when tc
+       (set-fun-defn!
+        (string->symbol name)
+        (add-test-case (get-fun-defn
+                        (string->symbol name))
+                       tc))))))
+
+(define (check-tc-input input output)
+  (with-handlers ([exn:fail? (λ (e) 
+                               (add-error! 
+                                (string-append "The following error occurred: "
+                                               e))
+                               #f)])
+    (define in (to-racket input))
+    (cond 
+      [(list? in)
+       (testcase in (to-racket output))]
+      [else
+       (add-error! "Input for a testcase must be a list of parameters.")
+       #f])))
 
 (define-formlet-action (add-new-prop name)
   "Add a new property"
@@ -283,16 +303,37 @@
          (label ((class "col-lg-2 control-label"))
                 "Function")
          ,{input-string . => . p-fun}))
-   (set-fun-defn!
-    (string->symbol name)
-    (add-property (get-fun-defn
-                   (string->symbol name))
-                  (string->symbol p-name)
-                  (to-racket p-fun)))))
+   (begin 
+     (when (check-property-input name p-name p-fun)
+       (set-fun-defn!
+        (string->symbol name)
+        (add-property (get-fun-defn
+                       (string->symbol name))
+                      (string->symbol p-name)
+                      (to-racket p-fun)))))))
+(define (check-property-input fd-name p-name p-fun)
+  (with-handlers ([exn:fail? (λ (e) 
+                               (add-error! 
+                                (string-append "The following error occurred: "
+                                               e))
+                               #f)])
+    (cond 
+      [(has-prop? (string->symbol fd-name)
+                  (string->symbol p-name))
+       (add-error! (string-append "A property in function definition "
+                                  fd-name
+                                  " already exists with the name "
+                                  p-name))
+       #f]
+      [else
+       #t])))
+(module+ test
+  (check-false (check-property-input "add" "increasing" "(λ (x) 123)"))
+  (check-true (check-property-input "cube" "fail" "(λ (y) #f)")))
 
 (define-link-action (remove-prop fd-name p-name code)
   #:url ("grip" "fun" (string-arg) "p-name" (string-arg)
-         "p-fun" (string-arg))
+                "p-fun" (string-arg))
   (div
    (td ,p-name)
    (td ,code))
@@ -311,11 +352,14 @@
            (required
             (text-input #:value
                         (string->bytes/utf-8 code)))) . => . new-code})
-   (set-fun-defn!
-    (string->symbol name)
-    (set-code (get-fun-defn
-               (string->symbol name))
-              (to-racket new-code)))))
+   (if (procedure? (to-racket new-code))
+       (set-fun-defn!
+        (string->symbol name)
+        (set-code (get-fun-defn
+                   (string->symbol name))
+                  (to-racket new-code)))
+       (add-error! (string-append "Code must be a procedure; given: "
+                                  new-code)))))
 
 (define-formlet-action (test-prop)
   "Run QuickCheck"
@@ -333,14 +377,57 @@
     (div ((class "form-group"))
          (label ((class "col-lg-2 control-label"))
                 "Number of times to test ")
-         ,{input-int . => . qc-count}))
-   (run-quick-check (string->symbol fd-name)
-                    (string->symbol p-name)
-                    qc-count)))
-
+         ,{input-string . => . qc-count}))
+   (when (check-qc-input fd-name p-name qc-count)
+     (run-quick-check (string->symbol fd-name)
+                      (string->symbol p-name)
+                      (string->number qc-count)))))
+(define (check-qc-input fd-name p-name count)
+  (with-handlers ([exn:fail? (λ (e) 
+                               (add-error! 
+                                (string-append "The following error occurred: "
+                                               (exn-message e)))
+                               #f)])
+    (define pass (box #t))
+    (unless (has-fun-defn? (string->symbol fd-name))
+      (add-error! (string-append "No function exists with the name "
+                                 fd-name))
+      (set-box! pass #f))
+    (unless (has-prop? (string->symbol fd-name)
+                       (string->symbol p-name))
+      (add-error! (string-append "No property in function definition "
+                                 fd-name
+                                 " exists with the name "
+                                 p-name))
+      (set-box! pass #f))
+    (unless (positive? (to-racket count))
+      (add-error! (string-append "Required a positive integer; given "
+                                 count))
+      (set-box! pass #f))
+    (unbox pass)))
+(module+ test
+  (check-false (check-qc-input "cube-it" "increasing" "123"))
+  (check-true (check-qc-input "add" "increasing" "123"))
+  (check-false (check-qc-input "cube" "increasing" "123"))
+  (check-false (check-qc-input "cube" "increasing" "nh7")))
 
 
 ;; FUNCTION DEFINITIONS
+
+;; render-errors : -> xexpr
+(define (render-errors)
+  (define errors (get-errors))
+  (clear-errors)
+  (if (empty? errors)
+      `(div)
+      `(div ((class "alert alert-dimissable alert-danger"))
+            (button ((type "button")
+                     (class "close")
+                     (data-dismiss "alert"))
+                    "x")
+            ,@(map (λ (error-msg)
+                     `(p ,error-msg))
+                   errors))))
 
 ;; qc-results : -> xexpr
 (define (qc-results)
@@ -433,17 +520,17 @@
 (define (render-testcases tcs fd-name)
   `(div
     ,(if (empty? tcs)
-       `(div ((class "alert alert-dimissable alert-info"))
-             (button ((type "button")
-                      (class "close")
-                      (data-dismiss "alert"))
-                     "x")
-             "Currently, there are no test cases for this function.")
-       `(table ((class "table"))
-               (thead
-                (tr (th "Input")
-                    (th "Output")))
-               (tbody ,@(map render-testcase tcs))))
+         `(div ((class "alert alert-dimissable alert-info"))
+               (button ((type "button")
+                        (class "close")
+                        (data-dismiss "alert"))
+                       "x")
+               "Currently, there are no test cases for this function.")
+         `(table ((class "table"))
+                 (thead
+                  (tr (th "Input")
+                      (th "Output")))
+                 (tbody ,@(map render-testcase tcs))))
     ,(add-new-tc fd-name)))
 
 ;; render-testcase : testcase
@@ -455,22 +542,22 @@
 (define (render-properties props fd-name)
   `(div
     ,(if (zero? (hash-count props))
-       `(div ((class "alert alert-dimissable alert-info"))
-             (button ((type "button")
-                      (class "close")
-                      (data-dismiss "alert"))
-                     "x")
-             "Currently, there are no properties for this function.")
-       `(table ((class "table"))
-               (thead
-                (tr (th "Name")
-                    (th "Function")
-                    (th)))
-               (tbody ,@(hash-map props
-                                  (λ (name fun)
-                                    (remove-prop fd-name
-                                                 (to-str name)
-                                                 (to-str fun)))))))
+         `(div ((class "alert alert-dimissable alert-info"))
+               (button ((type "button")
+                        (class "close")
+                        (data-dismiss "alert"))
+                       "x")
+               "Currently, there are no properties for this function.")
+         `(table ((class "table"))
+                 (thead
+                  (tr (th "Name")
+                      (th "Function")
+                      (th)))
+                 (tbody ,@(hash-map props
+                                    (λ (name fun)
+                                      (remove-prop fd-name
+                                                   (to-str name)
+                                                   (to-str fun)))))))
     ,(add-new-prop fd-name)))
 
 
@@ -489,35 +576,35 @@
 ;; render-results : -> xexpr
 (define (render-results results)
   (if (empty? results)
-    `(div ((class "alert alert-dismissable alert-success"))
-          (button ((type "button")
-                   (class "close")
-                   (data-dismiss "alert"))
-                  "x")
-          "All checks passed successfully!")
-    `(table ((class "table table-striped"))
-            (thead (tr
-                    (th "Function")
-                    (th "Input")
-                    (th "Actual Output")
-                    (th "Expected Output")))
-            ,@(map (λ (result)
-                     (cond
-                       [(testcase-result? result)
-                        (render-tc-result result)]
-                       [(property-result? result)
-                        (render-prop-result result)]
-                       [(property-result/tc? result)
-                        (render-prop-result/tc result)]
-                       ))
-                   results))))
+      `(div ((class "alert alert-dismissable alert-success"))
+            (button ((type "button")
+                     (class "close")
+                     (data-dismiss "alert"))
+                    "x")
+            "All checks passed successfully!")
+      `(table ((class "table table-striped"))
+              (thead (tr
+                      (th "Function")
+                      (th "Input")
+                      (th "Actual Output")
+                      (th "Expected Output")))
+              ,@(map (λ (result)
+                       (cond
+                         [(testcase-result? result)
+                          (render-tc-result result)]
+                         [(property-result? result)
+                          (render-prop-result result)]
+                         [(property-result/tc? result)
+                          (render-prop-result/tc result)]
+                         ))
+                     results))))
 
 ;; render-tc-result : testcase-result -> xexpr
 (define (render-tc-result result)
   (match-define (testcase-result tc trace)
-                result)
+    result)
   (match-define (fun-call fd in out)
-                (first trace))
+    (first trace))
   `(tbody (tr ((class "danger"))
               (td ,(to-str fd))
               (td ,(to-str in))
@@ -528,9 +615,9 @@
 ;; render-prop-result : property-result -> xexpr
 (define (render-prop-result result)
   (match-define (property-result p-name trace)
-                result)
+    result)
   (match-define (fun-call fd in out)
-                (first trace))
+    (first trace))
   `(tbody (tr ((class "danger"))
               (td ,(string-append (to-str fd) ": "
                                   (to-str p-name)))
@@ -542,7 +629,7 @@
 ;; render-prop-result/tc : property-result/tc -> xexpr
 (define (render-prop-result/tc result)
   (match-define (property-result/tc fd-name p-name tc)
-                result)
+    result)
   (match-define (testcase in out) tc)
   `(tr ((class "danger"))
        (td ,(string-append (to-str fd-name) ":"
@@ -578,12 +665,10 @@
   (check-pred string? (to-racket "\"joy\""))
   (check-pred (λ (l)
                 (and (list? l)
-                     (= 3 (length l))
+                     (= 2 (length l))
                      (= 3 (first l))
-                     (equal? "match" (second l))
-                     (equal? 'joy (third l)))) 
-              (to-racket "(3 \"\"match\"\" \"joy\")"))
-  (check-pred procedure? (to-racket "(λ () (random))")))
+                     (equal? (second l) "joy"))) 
+              (to-racket "(3 \"joy\")")))
 
 (module+ main
   (serve/servlet
